@@ -1,0 +1,21 @@
+# ===== Node modules (đúng 3 nơi đang có) =====
+backend/node_modules/
+frontend/admin-doctor-app/node_modules/
+frontend/patient-app/node_modules/
+
+# ===== Env cho từng app (đúng 3 file .env đang có) =====
+backend/.env
+frontend/admin-doctor-app/.env
+frontend/patient-app/.env
+# Nếu lỡ có biến thể .env.* thì cũng chặn
+backend/.env.*
+frontend/admin-doctor-app/.env.*
+frontend/patient-app/.env.*
+!**/.env.example  
+
+# ===== React build output (khi bạn chạy build 2 app React) =====
+frontend/admin-doctor-app/build/
+frontend/patient-app/build/
+
+# ===== Log (nếu phát sinh) =====
+*.log
