@@ -1,9 +1,12 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import "./index.css"; // bootstrap + theme
 
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <BrowserRouter>
     <App />
-  </React.StrictMode>
+  </BrowserRouter>
 );

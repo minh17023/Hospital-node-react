@@ -1,36 +1,49 @@
 import { AppError } from "../../core/http/error.js";
 import { InsuranceService } from "./insurance.service.js";
-import { InsuranceModel } from "./insurance.model.js";
 
 export const InsuranceController = {
-  // POST /patients/:idBenhNhan/bhyt
-  async addCard(req, res, next) {
-    try {
-      const id = Number(req.params.idBenhNhan);
-      const { soThe, denNgay, trangThai = 1 } = req.body || {};
-      if (!id || !soThe || !denNgay) throw new AppError(400, "Thiếu id/soThe/denNgay");
-
-      const list = await InsuranceService.addCardAndSetActive(id, { soThe, denNgay, trangThai });
-      res.status(201).json({ bhyt: list });
-    } catch (e) { next(e); }
-  },
-
-  // PATCH /insurance/cards/:idBHYT?setActive=true
-  async updateCard(req, res, next) {
-    try {
-      const idBHYT = Number(req.params.idBHYT);
-      const setActive = String(req.query.setActive || "false") === "true";
-      const list = await InsuranceService.updateCard(idBHYT, req.body || {}, { setActive });
-      res.json({ bhyt: list });
-    } catch (e) { next(e); }
-  },
-
   // GET /patients/:idBenhNhan/bhyt
-  async listByPatient(req, res, next) {
+  async getByPatient(req, res, next) {
     try {
-      const id = Number(req.params.idBenhNhan);
-      const list = await InsuranceModel.listByPatient(id);
-      res.json({ bhyt: list });
+      const idBenhNhan = Number(req.params.idBenhNhan);
+      if (!idBenhNhan) throw new AppError(400, "Thiếu idBenhNhan");
+
+      const card = await InsuranceService.getByPatient(idBenhNhan);
+      res.json({ bhyt: card }); // card hoặc null
+    } catch (e) { next(e); }
+  },
+
+  // POST /patients/:idBenhNhan/bhyt
+  async create(req, res, next) {
+    try {
+      const idBenhNhan = Number(req.params.idBenhNhan);
+      const { soThe, denNgay, trangThai = 1 } = req.body || {};
+      if (!idBenhNhan || !soThe || !denNgay)
+        throw new AppError(400, "Thiếu idBenhNhan/soThe/denNgay");
+
+      const card = await InsuranceService.createOne(idBenhNhan, { soThe, denNgay, trangThai });
+      res.status(201).json({ bhyt: card });
+    } catch (e) { next(e); }
+  },
+
+  // PUT /patients/:idBenhNhan/bhyt
+  async update(req, res, next) {
+    try {
+      const idBenhNhan = Number(req.params.idBenhNhan);
+      if (!idBenhNhan) throw new AppError(400, "Thiếu idBenhNhan");
+
+      const card = await InsuranceService.updateByPatient(idBenhNhan, req.body || {});
+      res.json({ bhyt: card });
+    } catch (e) { next(e); }
+  },
+
+  // GET /patients/:idBenhNhan/insurance/has-valid
+  async hasValid(req, res, next) {
+    try {
+      const idBenhNhan = Number(req.params.idBenhNhan);
+      if (!idBenhNhan) throw new AppError(400, "Thiếu idBenhNhan");
+      const data = await InsuranceService.hasValidByPatient(idBenhNhan);
+      res.json(data); // { hasValid: boolean }
     } catch (e) { next(e); }
   }
 };

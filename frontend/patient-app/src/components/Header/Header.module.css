@@ -1,0 +1,5 @@
+.header { position:sticky; top:0; z-index:20; background:#1f5fa9; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.wrap { max-width:var(--wrap); margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+.brand { display:flex; gap:8px; align-items:center; cursor:pointer; font-weight:600; }
+.title { margin:0; font-size:18px; font-weight:700; flex:1; text-align:center; }
+.btnBack { appearance:none; border:0; background:transparent; color:#fff; font-weight:600; cursor:pointer; }

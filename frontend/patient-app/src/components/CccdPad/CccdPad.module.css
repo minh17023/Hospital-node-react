@@ -1,0 +1,111 @@
+/* Backdrop */
+.backdrop{
+  position:fixed; inset:0;
+  background:rgba(2, 6, 23, .45);
+  backdrop-filter:saturate(120%) blur(2px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:1050;
+}
+
+/* ====== Modal base + variables ====== */
+.modal{
+  /* Kích thước mặc định (medium) */
+  --w: 720px;
+  --pad-x: 22px;
+  --pad-y: 20px;
+  --radius: 18px;
+  --screen-h: 58px;
+  --screen-fz: 20px;
+  --gap: 14px;
+  --key-h: 70px;
+  --key-fz: 20px;
+  --btn-ghost-h: 42px;
+
+  width:min(var(--w), 92vw);
+  background:#fff;
+  border-radius:var(--radius);
+  padding:var(--pad-y) var(--pad-x);
+  box-shadow:0 28px 110px rgba(2, 6, 23, .28);
+  position:relative;
+}
+
+/* Bản compact: chỉ cần thêm class này */
+.compact{
+  --w: 560px;
+  --pad-x: 16px;
+  --pad-y: 14px;
+  --radius: 14px;
+  --screen-h: 48px;
+  --screen-fz: 18px;
+  --gap: 10px;
+  --key-h: 56px;
+  --key-fz: 18px;
+  --btn-ghost-h: 38px;
+}
+
+/* X góc phải */
+.close{
+  position:absolute; top:8px; right:10px;
+  width:32px; height:32px; border-radius:999px;
+  border:none; background:#f1f5f9; color:#0f172a;
+  font-size:20px; line-height:32px; text-align:center;
+  cursor:pointer; transition:.15s ease;
+}
+.close:hover{ background:#e2e8f0; }
+
+/* Title + ô hiển thị */
+.title{ margin:0 0 8px; font-weight:700; color:#0f172a; font-size:16px; }
+
+.screen{
+  height:var(--screen-h);
+  border-radius:14px;
+  background:#f3f6fb; border:1px solid #e5e7eb;
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--screen-fz); letter-spacing:2px; color:#0f172a;
+  margin-bottom:var(--gap);
+}
+
+/* Lưới phím */
+.grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:var(--gap); }
+
+.key{
+  height:var(--key-h); border:none; border-radius:14px;
+  font-size:var(--key-fz); font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; cursor:pointer;
+  box-shadow:0 8px 18px rgba(0,0,0,.08);
+  transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+}
+.key:active{ transform:scale(.985); }
+
+/* Màu nút */
+.blue{ background:linear-gradient(180deg, #2f86ff, #1f6dff); }
+.blue:hover{ filter:brightness(1.03); box-shadow:0 10px 20px rgba(31,109,255,.22); }
+
+.red{ background:#ef4444; }
+.red:hover{ filter:brightness(1.04); box-shadow:0 10px 20px rgba(239,68,68,.22); }
+
+.yellow{ background:#f59e0b; }
+.yellow:hover{ filter:brightness(1.05); box-shadow:0 10px 20px rgba(245,158,11,.22); }
+
+.icon{ font-size:calc(var(--key-fz) - 2px); line-height:1; }
+
+/* Footer */
+.footer{ display:flex; justify-content:center; margin-top:var(--gap); }
+.btnGhost{
+  min-width:108px; height:var(--btn-ghost-h); padding:0 16px;
+  border-radius:12px; border:1px solid #d1d5db;
+  background:#fff; color:#334155; font-weight:600; cursor:pointer;
+  transition:.15s ease;
+}
+.btnGhost:hover{ background:#f8fafc; }
+
+/* Responsive: trên mobile tự thu nhỏ thêm chút */
+@media (max-width: 420px){
+  .compact{
+    --w: 92vw;
+    --key-h: 52px;
+    --key-fz: 17px;
+    --screen-h: 44px;
+  }
+}

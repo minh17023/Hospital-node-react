@@ -1,0 +1,31 @@
+/* toàn khung chiếm full viewport */
+.shell {
+  height: 100dvh;              /* = 100% viewport height, safe on mobile */
+  position: relative;
+  background: var(--bg, #f3f6fb);
+}
+
+/* header/footer cố định */
+.header {
+  position: fixed;
+  inset: 0 0 auto 0;           /* top:0; left:0; right:0 */
+  z-index: 1000;
+}
+.footer {
+  position: fixed;
+  inset: auto 0 0 0;           /* bottom:0; left:0; right:0 */
+  z-index: 1000;
+}
+
+/* vùng nội dung riêng, có padding để né header/footer và cho phép scroll */
+.main {
+  height: 100dvh;
+  overflow: auto;              /* <- cuộn ở đây */
+  padding-top: var(--hdr, 56px);
+  padding-bottom: var(--ftr, 52px);
+  width: 100%;
+  max-width: 100%;
+}
+
+/* optional: giới hạn chiều rộng container bên trong nếu muốn */
+/* bạn có thể giữ .container của bootstrap trong từng page */

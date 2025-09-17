@@ -3,55 +3,89 @@ import { AppError } from "../../core/http/error.js";
 import { InsuranceModel } from "./insurance.model.js";
 
 export const InsuranceService = {
-  // thêm thẻ mới và đặt làm thẻ hiện hành (deactivate thẻ cũ + sync BenhNhan.soBHYT)
-  async addCardAndSetActive(idBenhNhan, { soThe, denNgay, trangThai = 1 }) {
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-
-      // 1) vô hiệu hoá các thẻ cũ nếu bạn muốn chỉ có 1 thẻ active
-      await conn.query(`UPDATE BaoHiemYTe SET trangThai=0 WHERE idBenhNhan=?`, [idBenhNhan]);
-
-      // 2) thêm thẻ mới
-      await InsuranceModel.create({ idBenhNhan, soThe, denNgay, trangThai }, conn);
-
-      // 3) đồng bộ số thẻ hiện hành trên BenhNhan
-      await conn.query(`UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`, [soThe, idBenhNhan]);
-
-      await conn.commit();
-      return await InsuranceModel.listByPatient(idBenhNhan);
-    } catch (e) {
-      try { await conn.rollback(); } catch {}
-      if (e?.code === "ER_DUP_ENTRY") throw new AppError(409, "Số thẻ BHYT đã tồn tại");
-      throw e;
-    } finally { conn.release(); }
+  // GET: lấy thẻ (hoặc null)
+  async getByPatient(idBenhNhan) {
+    return InsuranceModel.getByPatient(idBenhNhan);
   },
 
-  // cập nhật thẻ; nếu setActive=true → đặt làm thẻ hiện hành và sync soBHYT
-  async updateCard(idBHYT, patch, { setActive = false } = {}) {
+  // POST: tạo mới (nếu đã có → 409). Sync BenhNhan.soBHYT
+  async createOne(idBenhNhan, { soThe, denNgay, trangThai = 1 }) {
+    const existed = await InsuranceModel.getByPatient(idBenhNhan);
+    if (existed) throw new AppError(409, "Bệnh nhân đã có thẻ BHYT");
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const card = await InsuranceModel.findById(idBHYT);
-      if (!card) throw new AppError(404, "Không tìm thấy thẻ BHYT");
+      const [rs] = await conn.query(
+        `INSERT INTO BaoHiemYTe (idBenhNhan, soThe, denNgay, trangThai, ngayTao)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [idBenhNhan, soThe, denNgay, trangThai]
+      );
 
-      if (Object.keys(patch || {}).length) {
-        await InsuranceModel.update(idBHYT, patch);
+      await conn.query(
+        `UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`,
+        [soThe, idBenhNhan]
+      );
+
+      await conn.commit();
+      return await InsuranceModel.getByPatient(idBenhNhan);
+    } catch (e) {
+      try { await conn.rollback(); } catch {}
+      if (e?.code === "ER_DUP_ENTRY") {
+        throw new AppError(409, "Bệnh nhân đã có thẻ BHYT");
+      }
+      throw e;
+    } finally {
+      conn.release();
+    }
+  },
+
+  // PUT: cập nhật thẻ hiện có. Nếu đổi số thẻ, sync BenhNhan.soBHYT
+  async updateByPatient(idBenhNhan, patch) {
+    const existed = await InsuranceModel.getByPatient(idBenhNhan);
+    if (!existed) throw new AppError(404, "Chưa có thẻ BHYT để cập nhật");
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // update bảng BHYT
+      const allow = ["soThe", "denNgay", "trangThai"];
+      const sets = [];
+      const vals = [];
+      for (const k of allow) {
+        if (patch[k] !== undefined) { sets.push(`${k}=?`); vals.push(patch[k]); }
+      }
+      if (sets.length) {
+        vals.push(idBenhNhan);
+        await conn.query(
+          `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE idBenhNhan=?`,
+          vals
+        );
       }
 
-      if (setActive) {
-        await conn.query(`UPDATE BaoHiemYTe SET trangThai=0 WHERE idBenhNhan=?`, [card.idBenhNhan]);
-        await conn.query(`UPDATE BaoHiemYTe SET trangThai=1 WHERE idBHYT=?`, [idBHYT]);
-        await conn.query(`UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`, [card.soThe, card.idBenhNhan]);
+      // nếu thay đổi soThe → sync BenhNhan.soBHYT
+      if (patch.soThe !== undefined && patch.soThe !== existed.soThe) {
+        await conn.query(
+          `UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`,
+          [patch.soThe, idBenhNhan]
+        );
       }
 
       await conn.commit();
-      return await InsuranceModel.listByPatient(card.idBenhNhan);
+      return await InsuranceModel.getByPatient(idBenhNhan);
     } catch (e) {
       try { await conn.rollback(); } catch {}
-      if (e?.code === "ER_DUP_ENTRY") throw new AppError(409, "Số thẻ BHYT đã tồn tại");
       throw e;
-    } finally { conn.release(); }
+    } finally {
+      conn.release();
+    }
+  },
+
+  // GET: boolean hasValid
+  async hasValidByPatient(idBenhNhan) {
+    const hasValid = await InsuranceModel.hasValidByPatient(idBenhNhan);
+    return { hasValid };
   }
 };

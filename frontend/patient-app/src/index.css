@@ -1,0 +1,7 @@
+@import "bootstrap/dist/css/bootstrap.min.css";
+@import "./styles/theme.css";
+
+/* Một vài reset/utility nhẹ (tuỳ chọn) */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { overflow: hidden; margin: 0; background: var(--bg, #f6f8fc); }

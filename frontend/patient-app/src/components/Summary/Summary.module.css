@@ -1,0 +1,4 @@
+.wrap { padding:20px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 24px; }
+.row { display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:8px 0; }
+.actions { display:flex; justify-content:center; gap:12px; margin-top:16px; }
