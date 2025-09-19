@@ -1,7 +1,7 @@
 import { UsersModel } from "./users.model.js";
 import { AppError } from "../../core/http/error.js";
 import { pool } from "../../config/db.js";
-import { BacSiModel } from "../bacSi/bacsi.model.js";
+import { DoctorModel } from "../doctor/doctor.model.js";
 
 export const UsersService = {
   findByUsername: (u) => UsersModel.findByUsername(u),
@@ -38,7 +38,7 @@ export const UsersService = {
       const idUser = rsUser.insertId;
 
       // 2) Tạo BacSi (KHÔNG đưa hoTen/soDienThoai/email vì bảng không có các cột đó)
-      await BacSiModel.create(
+      await DoctorModel.create(
         {
           idUser, idChuyenKhoa, bangCap, chungChi, kinhNghiem,
           chuyenMonChinh, chuyenMonPhu,

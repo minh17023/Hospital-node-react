@@ -1,6 +1,111 @@
-.wrap { display:flex; justify-content:center; gap:28px; margin:16px 0 24px; }
-.step { display:flex; flex-direction:column; align-items:center; color:#64748b; font-weight:600; font-size:.95rem; }
-.circle { width:40px; height:40px; border-radius:999px; border:2px solid #cbd5e1; background:#fff; display:grid; place-items:center; margin-bottom:.4rem; color:#334155; }
-.active .circle { border-color:var(--primary); color:var(--primary); box-shadow:0 0 0 .2rem rgba(22,105,242,.15); }
-.active { color:#0f172a; }
-.line { width:60px; height:2px; background:#cbd5e1; align-self:center; }
+/* ===== Stepper.module.css (fixed under header) ===== */
+
+/* Biến toàn cục (fallback) */
+:global(:root){
+  --header-h: 84px;   /* đo offsetHeight của .header của bạn */
+  --stepper-h: 72px;  /* chiều cao thanh step */
+  --c-primary: #2563eb;
+  --c-primary-600:#1d4ed8;
+  --c-done:#16a34a;
+  --c-text:#0f172a;
+  --c-muted:#64748b;
+}
+
+/* Spacer để chừa chỗ cho thanh step (vì fixed không chiếm layout) */
+.spacer{ height: var(--stepper-h); }
+
+/* Thanh step – luôn cố định sát dưới header */
+.wrap{
+  position: fixed;
+  top: var(--header-h);
+  left: 0; right: 0;
+  z-index: 19; /* nhỏ hơn header (20) */
+  display:flex; align-items:center; gap:28px;
+  max-width:1100px; margin:0 auto;
+  padding:12px 16px;
+  border-radius:18px;
+  background:linear-gradient(180deg,#fff,#f8fafc);
+  box-shadow:0 8px 30px rgba(15,23,42,.06), inset 0 1px 0 #fff;
+  overflow:hidden;
+  height: var(--stepper-h);
+}
+
+/* Mỗi step chiếm đều không co lệch */
+.step{
+  position:relative;
+  display:flex; align-items:center; gap:12px;
+  flex:1 1 0; min-width:0;
+}
+
+/* Vòng số/tick */
+.circle{
+  width:42px; height:42px; border-radius:999px;
+  display:grid; place-items:center;
+  font-weight:800; font-size:16px;
+  color:var(--c-primary); background:#eef2ff;
+  border:2px solid #c7d2fe;
+  box-shadow:inset 0 3px 10px rgba(29,78,216,.08), 0 2px 0 #fff;
+  flex:0 0 auto;
+}
+.tick{ font-size:16px; line-height:1; }
+
+/* Text */
+.texts{ display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+.caption{
+  font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--c-muted); font-weight:700;
+}
+.label{
+  font-size:16px; font-weight:800; color:var(--c-text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* Line nối – gradient, bo tròn */
+.line{
+  position:absolute; left:calc(100% + 12px); top:50%;
+  transform:translateY(-50%);
+  height:8px; width:clamp(28px, 9vw, 140px);
+  border-radius:999px;
+  background:linear-gradient(90deg,#e5e7eb 0%, #eef2f7 100%);
+  filter:saturate(.95);
+}
+
+/* ===== States ===== */
+.active .circle{
+  background:var(--c-primary);
+  border-color:var(--c-primary-600);
+  color:#fff;
+  box-shadow:0 8px 20px rgba(37,99,235,.28);
+}
+.active .label{ color:var(--c-primary-600); }
+
+.done .circle{
+  background:var(--c-done);
+  border-color:var(--c-done);
+  color:#fff;
+  box-shadow:0 8px 20px rgba(22,163,74,.25);
+}
+.done .line{
+  background:linear-gradient(90deg,#16a34a 0%, #22c55e 100%);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 992px){
+  :global(:root){ --header-h: 72px; --stepper-h: 64px; }
+  .wrap{ gap:22px; padding:10px 12px; border-radius:16px; }
+  .circle{ width:38px; height:38px; font-size:15px; }
+  .label{ font-size:15px; }
+  .line{ height:7px; width:clamp(24px, 12vw, 110px); left:calc(100% + 10px); }
+}
+@media (max-width: 768px){
+  :global(:root){ --header-h: 64px; --stepper-h: 56px; }
+  .wrap{ gap:16px; padding:8px 10px; }
+  .circle{ width:34px; height:34px; font-size:14px; }
+  .caption{ font-size:10px; }
+  .label{ font-size:14px; }
+  .line{ height:6px; width:clamp(18px, 14vw, 90px); left:calc(100% + 8px); }
+}
+@media (max-width: 480px){
+  .wrap{ gap:12px; padding:6px 8px; }
+  .label{ max-width:110px; }
+}

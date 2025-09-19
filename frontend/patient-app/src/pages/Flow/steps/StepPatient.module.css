@@ -1,0 +1,55 @@
+/* ---- KHAI BÁO CHIỀU CAO HEADER NGAY TRONG MODULE (toàn cục) ---- */
+:global(:root){ --header-h: 84px; }  /* đo DevTools ~83px => để 84px cho chắc */
+
+/* responsive (nếu header co lại trên màn nhỏ, tuỳ giao diện bạn chỉnh số) */
+@media (max-width: 992px){
+  :global(:root){ --header-h: 72px; }
+}
+@media (max-width: 768px){
+  :global(:root){ --header-h: 64px; }
+}
+
+/* ---- STEPPER DÍNH DƯỚI HEADER ---- */
+.stickyStepper{
+  position: sticky;
+  top: calc(var(--header-h) + 8px);  /* bám ngay dưới header */
+  z-index: 19;                       /* nhỏ hơn header z-index=20 */
+  background: transparent;
+  padding: 6px 0;
+  will-change: top;
+}
+
+/* Nếu cha bị set overflow làm hỏng sticky, nới ra ở đây */
+:global(.container), :global(.page-band), :global(main){
+  overflow: visible;
+}
+
+/* ====== phần còn lại giữ nguyên ====== */
+.card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+}
+.title { font-size: 22px; font-weight: 700; }
+.sub { color: #6b7280; }
+
+.skelRow {
+  height: 16px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  border-radius: 8px;
+  margin: 10px 0;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%{opacity:.7} 50%{opacity:1} 100%{opacity:.7} }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+.item { padding: 8px 0; border-bottom: 1px dashed #eef2f7; }
+.label { color: #6b7280; margin-bottom: 2px; }
+.value { font-weight: 600; }
+
+.badge { margin-left: 10px; padding: 2px 8px; font-size: 12px; border-radius: 999px; vertical-align: middle; }
+.ok { background: #ecfdf5; color: #047857; }
+.bad { background: #fef2f2; color: #b91c1c; }
+.muted { background: #f3f4f6; color: #4b5563; }
+
+.actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px; }

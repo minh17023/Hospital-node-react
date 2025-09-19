@@ -1,0 +1,158 @@
+/* =========================
+   ServiceStep.module.css
+   ========================= */
+
+/* --- Bề rộng chung khớp Stepper --- */
+:global(:root){
+  --shell-w: 1100px;            /* chỉnh nếu Stepper của bạn khác */
+  --modal-w: 880px;             /* bề rộng modal desktop */
+  --modal-shift: 10vh;          /* hạ modal xuống (từ đỉnh xuống) */
+}
+
+/* khung nội dung */
+.shell{ max-width: var(--shell-w); margin: 0 auto; }
+
+/* ===== Hero ===== */
+.hero{ text-align:center; margin: 8px 0 18px; }
+.hero h2{ margin:0; font-size: 32px; font-weight: 800; letter-spacing:.2px; }
+.hero p{ margin:.25rem 0 0; color:#6b7280; }
+
+/* ===== Grid & Card (dịch vụ) ===== */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:20px;
+}
+.card{
+  background:#fff; border-radius:16px; padding:16px;
+  border:1px solid #eef2f7; box-shadow:0 10px 24px rgba(0,0,0,.06);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.card:hover{
+  transform: translateY(-2px);
+  box-shadow:0 16px 40px rgba(15,23,42,.12);
+  border-color:#e5e7eb;
+}
+
+/* Skeleton */
+.skeleton{
+  height:192px;
+  background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 37%,#f3f4f6 63%);
+  animation: shimmer 1.2s infinite linear;
+}
+@keyframes shimmer{ 0%{background-position:-200px 0} 100%{background-position:calc(200px + 100%) 0} }
+
+/* Card header */
+.head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.iconBox{
+  width:44px; height:44px; border-radius:12px;
+  display:grid; place-items:center;
+  background:#e0e7ff; color:#1d4ed8; font-size:20px; font-weight:700;
+  flex:0 0 auto;
+}
+.titleWrap{ min-width:0; flex:1 1 auto; }
+.title{
+  font-size:18px; font-weight:800; color:#0f172a;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.subtitle{
+  font-size:13px; color:#64748b; margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.price{ color:#059669; font-weight:800; white-space:nowrap; }
+
+.meta{ list-style:none; padding-left:16px; margin:8px 0 12px; color:#6b7280; font-size:14px; }
+.meta li{ margin:3px 0; }
+.hr{ height:1px; background:#e5e7eb; margin:8px 0 12px; border-radius:999px; }
+
+/* =========================
+   MODAL – ĐẸP & HẠ XUỐNG GIỮA MÀN
+   ========================= */
+.modal{
+  position: fixed; inset:0; z-index:1055;
+  display:grid; justify-items:center; align-content:start;
+  padding-top: var(--modal-shift);
+}
+.backdrop{
+  position:absolute; inset:0;
+  background: rgba(2,6,23,.55);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+/* Hộp thoại */
+.dialog{
+  position: relative;
+  width: min(var(--modal-w), 92vw);
+  max-height: calc(100vh - var(--modal-shift) - 4vh);
+  background:#fff; color:#0f172a;
+  border-radius: 20px;
+  border: 1px solid #e6e8ee;
+  box-shadow:
+    0 28px 60px rgba(15,23,42,.18),
+    0 10px 24px rgba(15,23,42,.10);
+  overflow:hidden;
+}
+
+/* Header modal */
+.dHead{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 20px 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+  border-bottom: 1px solid #eef2f6;
+}
+.dTitle{ font-size: 24px; font-weight: 800; letter-spacing:.2px; margin:0; }
+.dSub{ margin-top: 4px; color:#6b7280; font-size:14px; }
+.close{
+  appearance:none; border:0; background:transparent;
+  font-size: 22px; line-height: 1; cursor:pointer;
+  color:#94a3b8; padding: 6px; border-radius: 10px;
+}
+.close:hover{ color:#0f172a; background:#f3f4f6; }
+
+/* Body modal – cuộn trong nếu dài */
+.dBody{ padding: 18px 22px 22px; overflow:auto; }
+.loading, .empty{ text-align:center; color:#6b7280; padding:24px 0; }
+
+/* Danh sách phòng khám */
+.clinicGrid{ display:grid; grid-template-columns: 1fr; gap:16px; }
+
+/* Card phòng khám */
+.clinicCard{
+  background: #edfff7;
+  border: 2px solid #86efac;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 8px 20px rgba(16,185,129,.10);
+}
+.cRow{ display:flex; align-items:center; gap:12px; }
+.cIcon{
+  width:42px; height:42px; border-radius: 12px;
+  display:grid; place-items:center;
+  background:#22c55e; color:#fff; font-weight:800;
+}
+.cName{ font-weight:800; font-size:16px; flex:1 1 auto; }
+.cOk{ color:#16a34a; font-weight:800; }
+.cMeta{ color:#475569; margin:10px 0 12px 2px; }
+.hrThin{ height:1px; background:#0f172a1a; margin:8px 0 12px; border-radius:999px; }
+
+/* Tông màu nút Bootstrap */
+:global(.btn-success){
+  background:#16a34a; border-color:#16a34a; font-weight:700;
+}
+:global(.btn-success:hover){ filter:brightness(1.05); }
+:global(.btn-primary){ font-weight:700; }
+
+/* ===== Responsive ===== */
+@media (max-width: 1200px){
+  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 768px){
+  :global(:root){
+    --shell-w: 96vw;
+    --modal-w: 96vw;
+    --modal-shift: 8vh;
+  }
+  .grid{ grid-template-columns: 1fr; gap:16px; }
+  .hero h2{ font-size: 26px; }
+}

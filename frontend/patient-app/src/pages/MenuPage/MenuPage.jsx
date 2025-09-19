@@ -1,59 +1,54 @@
-// src/pages/MenuPage/MenuPage.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import s from "./MenuPage.module.css";
 
-// Helpers đọc thông tin phiên
 const getPatient = () => {
   const raw = sessionStorage.getItem("PATIENT_INFO") || localStorage.getItem("PATIENT_INFO");
-  return raw ? JSON.parse(raw) : null;
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
 };
-const hasValidBhyt = () => sessionStorage.getItem("HAS_VALID_BHYT") === "1";
-const skippedBhyt = () => sessionStorage.getItem("SKIP_BHYT") === "1";
-const pickModeFromSession = () => (hasValidBhyt() && !skippedBhyt() ? "bhyt" : "service");
 
 export default function MenuPage() {
   const nav = useNavigate();
   const [patient, setPatient] = useState(null);
   const [checking, setChecking] = useState(true);
+  const [hasValid, setHasValid] = useState(sessionStorage.getItem("HAS_VALID_BHYT") === "1");
 
-  // 1) Lấy patient từ storage
   useEffect(() => {
     const p = getPatient();
     if (!p) { nav("/"); return; }
     setPatient(p);
   }, [nav]);
 
-  // 2) Gọi API check BHYT, lưu vào sessionStorage (không TTL)
   useEffect(() => {
-    if (!patient) return;
+    if (!patient?.idBenhNhan) return;
+    let mounted = true;
     setChecking(true);
-    client
-      .get(`/patients/${patient.idBenhNhan}/insurance/has-valid`)
+
+    client.get(`/patients/${patient.idBenhNhan}/insurance/has-valid`)
       .then(({ data }) => {
         const ok = !!data?.hasValid;
         sessionStorage.setItem("HAS_VALID_BHYT", ok ? "1" : "0");
-        if (ok && data.currentCard) {
+        if (ok && data?.currentCard)
           sessionStorage.setItem("CURRENT_BHYT", JSON.stringify(data.currentCard));
-        } else {
-          sessionStorage.removeItem("CURRENT_BHYT");
-        }
+        else sessionStorage.removeItem("CURRENT_BHYT");
+        if (mounted) setHasValid(ok);
       })
       .catch(() => {
         sessionStorage.setItem("HAS_VALID_BHYT", "0");
         sessionStorage.removeItem("CURRENT_BHYT");
+        if (mounted) setHasValid(false);
       })
-      .finally(() => setChecking(false));
-  }, [patient]);
+      .finally(() => mounted && setChecking(false));
 
-  // 3) Điều hướng – cả 2 nút đều chọn mode dựa trên session
-  const goStep1 = () => {
-    const mode = pickModeFromSession();
-    nav(`/flow/step-1?mode=${mode}`);
+    return () => { mounted = false; };
+  }, [patient?.idBenhNhan]);
+
+  const goBhyt = () => {
+    if (checking) return alert("Đang kiểm tra thẻ BHYT, vui lòng đợi...");
+    const ok = sessionStorage.getItem("HAS_VALID_BHYT") === "1";
+    nav(ok ? "/flow/bhyt/step-1" : "/flow/service/step-1");
   };
-
-  if (!patient) return null;
 
   return (
     <div className="container py-4">
@@ -63,33 +58,27 @@ export default function MenuPage() {
       </div>
 
       <div className={s.grid}>
-        {/* Khám BHYT (nhưng vẫn pick mode theo session) */}
-        <button type="button" className={s.tile} onClick={goStep1} disabled={checking}>
+        <button type="button" className={s.tile} onClick={goBhyt}>
           <div className={s.icon} style={{ background: "#2f6df1", color: "#fff" }}>♥</div>
           <div className="flex-grow-1 text-start">
             <div className="fw-bold fs-5">Khám Bảo Hiểm Y Tế</div>
             <div className="text-muted">
-              {checking
-                ? "Đang kiểm tra thẻ..."
-                : (hasValidBhyt() && !skippedBhyt() ? "Sử dụng thẻ BHYT" : "Không đủ điều kiện BHYT → khám dịch vụ")}
+              {checking ? "Đang kiểm tra thẻ..." : (hasValid ? "Sử dụng thẻ BHYT" : "Không đủ điều kiện BHYT")}
             </div>
           </div>
           <div className="fs-3 text-muted">›</div>
         </button>
 
-        {/* Khám Dịch Vụ (yêu cầu của bạn: cũng check session; 1 → bhyt, 0 → service) */}
-        <button type="button" className={s.tile} onClick={goStep1}>
+        <button type="button" className={s.tile} onClick={() => nav("/flow/service/step-1")}>
           <div className={s.icon} style={{ background: "#10b981", color: "#fff" }}>▣</div>
           <div className="flex-grow-1 text-start">
             <div className="fw-bold fs-5">Khám Dịch Vụ</div>
-            <div className="text-muted">
-              {(hasValidBhyt() && !skippedBhyt()) ? "Có thẻ BHYT → dùng BHYT" : "Không dùng BHYT"}
-            </div>
+            <div className="text-muted">Không dùng BHYT</div>
           </div>
           <div className="fs-3 text-muted">›</div>
         </button>
 
-        <button type="button" className={s.tile} onClick={() => nav("/appointments")}>
+        <button type="button" className={s.tile} onClick={() => nav("/flow/booking/step-1")}>
           <div className={s.icon} style={{ background: "#8b5cf6", color: "#fff" }}>🕒</div>
           <div className="flex-grow-1 text-start">
             <div className="fw-bold fs-5">Đặt Lịch Hẹn</div>
