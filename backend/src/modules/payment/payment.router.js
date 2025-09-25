@@ -20,6 +20,7 @@ r.post(
   PaymentController.bookOnlineAndPay
 );
 
+/** Combo: Walk-in + khởi tạo thanh toán ngay */
 r.post(
   "/appointments/walkin/pay",
   authGuard(true),
@@ -27,7 +28,7 @@ r.post(
   PaymentController.walkinAndPay
 );
 
-/** Webhook Sepay (public, xác thực token) */
+/** Webhook Sepay (public) */
 r.post("/payments/webhooks/sepay", PaymentController.sepayWebhook);
 
 export default r;

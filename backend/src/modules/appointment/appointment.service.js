@@ -7,18 +7,6 @@ const need = (v, name) => {
 };
 const pad = (n) => String(n).padStart(2, "0");
 
-// Thêm 2 field phí vào object lịch hẹn
-async function attachFees(appt) {
-  if (!appt) return null;
-  const [base, hasBHYT] = await Promise.all([
-    AppointmentModel.baseFeeByAppointment(appt.idLichHen),
-    AppointmentModel.hasValidBHYTByPatient(appt.idBenhNhan),
-  ]);
-  const phiKhamGoc = base;
-  const phiDaGiam  = hasBHYT ? Math.round(base * 0.5) : base;
-  return { ...appt, phiKhamGoc, phiDaGiam };
-}
-
 export const AppointmentService = {
   /* ===== Online (Booking) ===== */
   async createOnline(idLichLamViec, body) {
@@ -33,6 +21,7 @@ export const AppointmentService = {
     try {
       await conn.beginTransaction();
 
+      // Khoá ca
       const [rows] = await conn.query(
         `SELECT llv.*, clv.gioVao
            FROM LichLamViec llv
@@ -45,6 +34,7 @@ export const AppointmentService = {
       if (Number(ca.idBacSi) !== Number(idBacSi))
         throw new AppError(400, "Bác sĩ không khớp với ca");
 
+      // Sức chứa
       const [[{ n: used }]] = await conn.query(
         `SELECT COUNT(*) n
            FROM LichHen
@@ -53,6 +43,7 @@ export const AppointmentService = {
       );
       if (used >= Number(ca.soLuongBenhNhanToiDa)) throw new AppError(409, "Ca đã đầy");
 
+      // Chống trùng
       const [dup] = await conn.query(
         `SELECT 1
            FROM LichHen
@@ -62,13 +53,20 @@ export const AppointmentService = {
       );
       if (dup.length) throw new AppError(409, "Bạn đã đặt lịch trong ca này");
 
+      // === TÍNH GIÁ & LƯU SNAPSHOT ===
+      const base = await AppointmentModel.getDoctorFee(idBacSi);
+      const hasBHYT = await AppointmentModel.hasValidBHYTByPatient(idBenhNhan);
+      const phiKhamGoc = base;
+      const phiDaGiam  = hasBHYT ? Math.round(base * 0.5) : base;
+
       const stt = Number(used) + 1;
       const [rs] = await conn.query(
         `INSERT INTO LichHen
-         (idBenhNhan,idBacSi,idChuyenKhoa,ngayHen,gioHen,loaiKham,lyDoKham,hinhThuc,trangThai,sttKham,ngayTao)
-         VALUES (?,?,?,?,?,?,?,?,?,?, NOW())`,
+         (idBenhNhan,idBacSi,idChuyenKhoa,ngayHen,gioHen,loaiKham,lyDoKham,
+          hinhThuc,trangThai,sttKham,phiKhamGoc,phiDaGiam,ngayTao)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())`,
         [idBenhNhan, idBacSi, idChuyenKhoa, ca.ngayLamViec, ca.gioVao,
-         loaiKham, lyDoKham || null, 2, 1, stt]
+         loaiKham, lyDoKham || null, 2, 1, stt, phiKhamGoc, phiDaGiam]
       );
 
       await conn.query(
@@ -77,8 +75,7 @@ export const AppointmentService = {
       );
 
       await conn.commit();
-      const appt = await AppointmentModel.getById(rs.insertId);
-      return await attachFees(appt);
+      return await AppointmentModel.getById(rs.insertId);
     } catch (e) {
       await conn.rollback();
       if (e && e.code === "ER_DUP_ENTRY") throw new AppError(409, "Bạn đã đặt lịch trong ca này");
@@ -88,7 +85,7 @@ export const AppointmentService = {
     }
   },
 
-  /* ===== Walk-in (tại quầy/kiosk) ===== */
+  /* ===== Walk-in ===== */
   async createWalkin(body) {
     const { idBenhNhan, idBacSi, idChuyenKhoa, loaiKham, lyDoKham } = body || {};
     need(idBenhNhan, "idBenhNhan");
@@ -115,6 +112,12 @@ export const AppointmentService = {
     );
     if (dupRows.length) throw new AppError(409, "Bạn đã có lịch trong ca này");
 
+    // === TÍNH GIÁ & LƯU SNAPSHOT ===
+    const base = await AppointmentModel.getDoctorFee(idBacSi);
+    const hasBHYT = await AppointmentModel.hasValidBHYTByPatient(idBenhNhan);
+    const phiKhamGoc = base;
+    const phiDaGiam  = hasBHYT ? Math.round(base * 0.5) : base;
+
     const stt = Number(used) + 1;
 
     const id = await AppointmentModel.insert({
@@ -127,34 +130,26 @@ export const AppointmentService = {
       lyDoKham: lyDoKham || "Đặt trực tiếp",
       hinhThuc: 1,
       trangThai: 1,
-      sttKham: stt
+      sttKham: stt,
+      phiKhamGoc,
+      phiDaGiam
     });
 
     const idLLV = await AppointmentModel.findShiftByDoctorDateTime(idBacSi, ngayISO, ca.gioVao);
     if (idLLV) await AppointmentModel.incShift(idLLV, +1);
 
-    const appt = await AppointmentModel.getById(id);
-    return await attachFees(appt);
+    return await AppointmentModel.getById(id);
   },
 
   /* ===== Common ===== */
-  async getById(id) {
-    const appt = await AppointmentModel.getById(id);
-    return await attachFees(appt);
-  },
+  async getById(id) { return await AppointmentModel.getById(id); },
 
   async listByPatient(idBenhNhan) {
-    const rows = await AppointmentModel.listByPatient(idBenhNhan);
-    const out = [];
-    for (const r of rows) out.push(await attachFees(r));
-    return out;
+    return await AppointmentModel.listByPatient(idBenhNhan);
   },
 
   async list({ idBacSi = null, ngay = null, limit = 50, offset = 0 }) {
-    const rows = await AppointmentModel.list({ idBacSi, ngay, limit, offset });
-    const out = [];
-    for (const r of rows) out.push(await attachFees(r));
-    return out;
+    return await AppointmentModel.list({ idBacSi, ngay, limit, offset });
   },
 
   async updateStatus(id, trangThai) {

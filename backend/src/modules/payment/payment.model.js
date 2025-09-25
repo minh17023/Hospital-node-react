@@ -1,4 +1,3 @@
-// src/modules/payment/payment.model.js
 import { pool } from "../../config/db.js";
 
 export const PaymentModel = {
@@ -12,18 +11,28 @@ export const PaymentModel = {
     return rows[0] || null;
   },
 
+  async listByAppointment(idLichHen) {
+    const [rows] = await pool.query(
+      `SELECT * FROM PaymentOrder
+       WHERE appointmentId=?
+       ORDER BY id DESC`,
+      [idLichHen]
+    );
+    return rows;
+  },
+
   async create(order) {
     const {
       appointmentId, amount, currency = "VND",
       transferContent, qrUrl, status = "PENDING",
-      meta = null
+      expireAt = null, meta = null
     } = order;
 
     const [rs] = await pool.query(
       `INSERT INTO PaymentOrder
-       (appointmentId, amount, currency, transferContent, qrUrl, status, meta, createdAt)
-       VALUES (?,?,?,?,?,?,?, NOW())`,
-      [appointmentId, amount, currency, transferContent, qrUrl, status, JSON.stringify(meta)]
+       (appointmentId, amount, currency, transferContent, qrUrl, status, expireAt, meta, createdAt)
+       VALUES (?,?,?,?,?,?,?,?, NOW())`,
+      [appointmentId, amount, currency, transferContent, qrUrl, status, expireAt, JSON.stringify(meta)]
     );
     return rs.insertId;
   },
@@ -42,8 +51,7 @@ export const PaymentModel = {
 
   async markPaid(id, ref) {
     await pool.query(
-      `UPDATE PaymentOrder SET status='PAID', paidAt=NOW(), providerRef=?
-        WHERE id=?`,
+      `UPDATE PaymentOrder SET status='PAID', paidAt=NOW(), providerRef=? WHERE id=?`,
       [ref || null, id]
     );
   },

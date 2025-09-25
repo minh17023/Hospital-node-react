@@ -23,7 +23,7 @@ export const AppointmentController = {
       const u = req.user || {};
       if (u.kind !== "PATIENT") throw new AppError(403, "Chỉ bệnh nhân");
       const items = await AppointmentService.listByPatient(Number(u.idBenhNhan));
-      res.json({ items }); // mỗi item có phiKhamGoc, phiDaGiam
+      res.json({ items });
     } catch (e) { next(e); }
   },
 
@@ -37,7 +37,7 @@ export const AppointmentController = {
       if (u.kind === "PATIENT" && Number(u.idBenhNhan) !== Number(appt.idBenhNhan)) {
         throw new AppError(403, "Chỉ xem được lịch của bạn");
       }
-      res.json(appt); // có phiKhamGoc, phiDaGiam
+      res.json(appt);
     } catch (e) { next(e); }
   },
 
@@ -50,7 +50,7 @@ export const AppointmentController = {
         limit: req.query.limit ? Number(req.query.limit) : 50,
         offset: req.query.offset ? Number(req.query.offset) : 0
       });
-      res.json({ items }); // mỗi item có phiKhamGoc, phiDaGiam
+      res.json({ items });
     } catch (e) { next(e); }
   },
 

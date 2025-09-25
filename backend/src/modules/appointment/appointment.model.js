@@ -82,17 +82,20 @@ export const AppointmentModel = {
     const {
       idBenhNhan, idBacSi, idChuyenKhoa,
       ngayHen, gioHen, loaiKham, lyDoKham = null,
-      hinhThuc, trangThai, sttKham = null
+      hinhThuc, trangThai, sttKham = null,
+      phiKhamGoc = null, phiDaGiam = null
     } = appt;
 
     const [rs] = await pool.query(
       `INSERT INTO LichHen
        (idBenhNhan, idBacSi, idChuyenKhoa, ngayHen, gioHen,
-        loaiKham, lyDoKham, hinhThuc, trangThai, sttKham, ngayTao)
-       VALUES (?,?,?,?,?,?,?,?,?,?, NOW())`,
+        loaiKham, lyDoKham, hinhThuc, trangThai, sttKham,
+        phiKhamGoc, phiDaGiam, ngayTao)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())`,
       [
         idBenhNhan, idBacSi, idChuyenKhoa, ngayHen, gioHen,
-        loaiKham, lyDoKham, hinhThuc, trangThai, sttKham
+        loaiKham, lyDoKham, hinhThuc, trangThai, sttKham,
+        phiKhamGoc, phiDaGiam
       ]
     );
     return rs.insertId;
@@ -208,27 +211,20 @@ export const AppointmentModel = {
     return { changed: 1, appt: curr };
   },
 
-  /* ========= (NEW) Phần hỗ trợ tính phí ========= */
-
-  // Lấy phí khám gốc theo lịch hẹn (join sang BacSi)
-  async baseFeeByAppointment(idLichHen) {
+  /* ===== Giá ===== */
+  async getDoctorFee(idBacSi) {
     const [rows] = await pool.query(
-      `SELECT bs.phiKham AS baseFee
-         FROM LichHen lh
-         JOIN BacSi bs ON bs.idBacSi = lh.idBacSi
-        WHERE lh.idLichHen=? LIMIT 1`,
-      [idLichHen]
+      `SELECT phiKham FROM BacSi WHERE idBacSi=? LIMIT 1`,
+      [idBacSi]
     );
-    return Number(rows[0]?.baseFee || 0);
+    return Number(rows[0]?.phiKham || 0);
   },
 
-  // BHYT hợp lệ: đúng theo yêu cầu của bạn (không dùng tuNgay)
   async hasValidBHYTByPatient(idBenhNhan) {
     const [rows] = await pool.query(
       `SELECT 1
          FROM BaoHiemYTe
-        WHERE idBenhNhan=?
-          AND trangThai=1
+        WHERE idBenhNhan=? AND trangThai=1
           AND DATE(denNgay) >= CURDATE()
         LIMIT 1`,
       [idBenhNhan]

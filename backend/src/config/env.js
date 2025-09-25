@@ -24,6 +24,7 @@ export const env = {
     accountName: process.env.PAY_VIETQR_ACCOUNT_NAME || "",
     style: process.env.PAY_VIETQR_STYLE || "compact",
     ttlMinutes: Number(process.env.PAY_TTL_MINUTES || 15),
+    sepayWebhookKey: process.env.SEPAY_WEBHOOK_KEY || "",
     sepayWebhookToken: process.env.SEPAY_WEBHOOK_TOKEN || "",
   }
 };
