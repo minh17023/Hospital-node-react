@@ -1,32 +1,33 @@
+// src/modules/doctor/doctor.service.js
 import { DoctorModel } from "./doctor.model.js";
 import { AppError } from "../../core/http/error.js";
 
 export const DoctorService = {
-  async getById(id) {
-    const item = await DoctorModel.findById(id);
-    if (!item) throw new AppError(404, "Không tìm thấy bác sĩ");
-    return item;
+  async create(payload) {
+    // kiểm tra các field bắt buộc
+    for (const k of ["idUser", "idChuyenKhoa", "tenBacSi"]) {
+      if (!payload?.[k]) throw new AppError(400, `Thiếu ${k}`);
+    }
+    const idBacSi = await DoctorModel.create(payload);
+    return await DoctorModel.findById(idBacSi);
   },
 
-  async list(query = {}) {
-    const items = await DoctorModel.list(query);
-    return { items, offset: Number(query.offset ?? 0), limit: Number(query.limit ?? 50) };
-  },
+  getById: (id) => DoctorModel.findById(id),
 
-  async listBySpecialty(idChuyenKhoa, query = {}) {
-    const items = await DoctorModel.listBySpecialty(idChuyenKhoa, query);
-    return { items, offset: Number(query.offset ?? 0), limit: Number(query.limit ?? 50) };
-  },
+  list: (query) => DoctorModel.list(query),
 
-  async update(id, patch) {
-    const changed = await DoctorModel.update(id, patch);
+  listBySpecialty: (idChuyenKhoa, opts) =>
+    DoctorModel.listBySpecialty(idChuyenKhoa, opts),
+
+  async update(idBacSi, patch) {
+    const changed = await DoctorModel.update(idBacSi, patch);
     if (!changed) throw new AppError(400, "Không có trường hợp lệ để cập nhật");
-    return this.getById(id);
+    return await DoctorModel.findById(idBacSi);
   },
 
-  async remove(id) {
-    const affected = await DoctorModel.remove(id);
-    if (!affected) throw new AppError(404, "Không tìm thấy bác sĩ");
-    return { deleted: true };
+  async remove(idBacSi) {
+    const ok = await DoctorModel.remove(idBacSi);
+    if (!ok) throw new AppError(404, "Không tìm thấy bác sĩ");
+    return true;
   },
 };

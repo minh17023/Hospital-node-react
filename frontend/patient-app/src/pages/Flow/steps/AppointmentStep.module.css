@@ -1,0 +1,40 @@
+.shell { max-width: 1024px; margin: 0 auto; }
+.title { font-size: 28px; font-weight: 700; text-align:center; margin-top:8px; }
+.subtitle { text-align:center; color:#6b7280; margin-bottom:20px; }
+
+.grid {
+  display:grid;
+  grid-template-columns: 1fr 1fr 280px;
+  gap:16px;
+}
+.card {
+  background:#fff; border-radius:12px; padding:16px;
+  box-shadow: 0 8px 24px rgba(16,24,40,.06);
+}
+.cardHead { font-weight:700; margin-bottom:12px; }
+.row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed #eee; }
+.row span { color:#6b7280; }
+.row b { color:#111827; }
+
+.badgeDanger {
+  background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:8px;
+}
+.note { color:#059669; margin-top:6px; }
+
+.qrCard { background:#fff; border-radius:12px; padding:16px; text-align:center;
+          box-shadow: 0 8px 24px rgba(16,24,40,.06); }
+.qrTitle { color:#6b7280; margin-bottom:8px; }
+.qrImg { width:200px; height:200px; object-fit:contain; margin:auto; border-radius:8px; background:#f9fafb; }
+
+.actions { display:flex; justify-content:center; gap:12px; margin:20px 0; }
+.help { background:#fffbeb; border:1px solid #fef3c7; border-radius:12px; padding:12px; color:#92400e; }
+
+.loading, .error { text-align:center; padding:40px 0; }
+.error { color:#b91c1c; }
+
+/* in ấn */
+@media print {
+  .actions, .help { display:none; }
+  .shell { max-width:none; }
+  
+}

@@ -18,8 +18,8 @@ export const SpecialtyModel = {
         ON bs.idChuyenKhoa = ck.idChuyenKhoa
        AND (bs.trangThai IS NULL OR bs.trangThai = 1)
       WHERE (ck.trangThai IS NULL OR ck.trangThai = 1)
-      GROUP BY ck.idChuyenKhoa
-      ORDER BY ck.tenChuyenKhoa;
+      GROUP BY ck.idChuyenKhoa, ck.tenChuyenKhoa, ck.moTa, ck.phongKham, ck.trangThai
+      ORDER BY ck.idChuyenKhoa ASC;
     `);
     return rows;
   },

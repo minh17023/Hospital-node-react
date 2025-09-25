@@ -11,7 +11,7 @@ import ProfilePage from "./pages/Profile/ProfilePage";
 // Flow 3-step chung
 import PatientStep from "./pages/Flow/steps/PatientStep";
 import ServiceStep from "./pages/Flow/steps/ServiceStep";
-import PrintStep from "./pages/Flow/steps/PrintStep";
+import AppointmentStep from "./pages/Flow/steps/AppointmentStep";
 
 // guard
 const getPatient = () => {
@@ -85,7 +85,7 @@ export default function App() {
         path="/flow/:mode/step-3"
         element={
           <PageShell title="In Phiếu Khám" showBack>
-            <RequirePatient><PrintStep /></RequirePatient>
+            <RequirePatient><AppointmentStep /></RequirePatient>
           </PageShell>
         }
       />

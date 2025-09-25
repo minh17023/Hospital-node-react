@@ -40,7 +40,7 @@ export const UsersService = {
       // 2) Tạo BacSi (KHÔNG đưa hoTen/soDienThoai/email vì bảng không có các cột đó)
       await DoctorModel.create(
         {
-          idUser, idChuyenKhoa, bangCap, chungChi, kinhNghiem,
+          idUser, tenBacSi: hoTen, idChuyenKhoa, bangCap, chungChi, kinhNghiem,
           chuyenMonChinh, chuyenMonPhu,
           soLuongBenhNhanToiDa, thoiGianKhamBinhQuan,
           ngayBatDauCongTac, phiKham, ghiChu

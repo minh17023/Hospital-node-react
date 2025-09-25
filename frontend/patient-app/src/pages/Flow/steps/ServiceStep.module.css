@@ -1,158 +1,165 @@
-/* =========================
-   ServiceStep.module.css
-   ========================= */
-
-/* --- Bề rộng chung khớp Stepper --- */
-:global(:root){
-  --shell-w: 1100px;            /* chỉnh nếu Stepper của bạn khác */
-  --modal-w: 880px;             /* bề rộng modal desktop */
-  --modal-shift: 10vh;          /* hạ modal xuống (từ đỉnh xuống) */
+/* ===== Layout tổng ===== */
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
-/* khung nội dung */
-.shell{ max-width: var(--shell-w); margin: 0 auto; }
+.hero {
+  margin: 8px 0 20px;
+  text-align: center;
+}
+.hero h2 { font-weight: 800; margin: 0 0 6px; }
+.hero p { margin: 0; color: #6b7280; }
 
-/* ===== Hero ===== */
-.hero{ text-align:center; margin: 8px 0 18px; }
-.hero h2{ margin:0; font-size: 32px; font-weight: 800; letter-spacing:.2px; }
-.hero p{ margin:.25rem 0 0; color:#6b7280; }
+/* ===== Grid dịch vụ ===== */
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-/* ===== Grid & Card (dịch vụ) ===== */
-.grid{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap:20px;
-}
-.card{
-  background:#fff; border-radius:16px; padding:16px;
-  border:1px solid #eef2f7; box-shadow:0 10px 24px rgba(0,0,0,.06);
-  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-}
-.card:hover{
-  transform: translateY(-2px);
-  box-shadow:0 16px 40px rgba(15,23,42,.12);
-  border-color:#e5e7eb;
-}
-
-/* Skeleton */
-.skeleton{
-  height:192px;
-  background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 37%,#f3f4f6 63%);
-  animation: shimmer 1.2s infinite linear;
-}
-@keyframes shimmer{ 0%{background-position:-200px 0} 100%{background-position:calc(200px + 100%) 0} }
-
-/* Card header */
-.head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-.iconBox{
-  width:44px; height:44px; border-radius:12px;
-  display:grid; place-items:center;
-  background:#e0e7ff; color:#1d4ed8; font-size:20px; font-weight:700;
-  flex:0 0 auto;
-}
-.titleWrap{ min-width:0; flex:1 1 auto; }
-.title{
-  font-size:18px; font-weight:800; color:#0f172a;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.subtitle{
-  font-size:13px; color:#64748b; margin-top:2px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.price{ color:#059669; font-weight:800; white-space:nowrap; }
-
-.meta{ list-style:none; padding-left:16px; margin:8px 0 12px; color:#6b7280; font-size:14px; }
-.meta li{ margin:3px 0; }
-.hr{ height:1px; background:#e5e7eb; margin:8px 0 12px; border-radius:999px; }
-
-/* =========================
-   MODAL – ĐẸP & HẠ XUỐNG GIỮA MÀN
-   ========================= */
-.modal{
-  position: fixed; inset:0; z-index:1055;
-  display:grid; justify-items:center; align-content:start;
-  padding-top: var(--modal-shift);
-}
-.backdrop{
-  position:absolute; inset:0;
-  background: rgba(2,6,23,.55);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-}
-
-/* Hộp thoại */
-.dialog{
-  position: relative;
-  width: min(var(--modal-w), 92vw);
-  max-height: calc(100vh - var(--modal-shift) - 4vh);
-  background:#fff; color:#0f172a;
-  border-radius: 20px;
-  border: 1px solid #e6e8ee;
-  box-shadow:
-    0 28px 60px rgba(15,23,42,.18),
-    0 10px 24px rgba(15,23,42,.10);
-  overflow:hidden;
-}
-
-/* Header modal */
-.dHead{
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 20px 22px;
-  background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
-  border-bottom: 1px solid #eef2f6;
-}
-.dTitle{ font-size: 24px; font-weight: 800; letter-spacing:.2px; margin:0; }
-.dSub{ margin-top: 4px; color:#6b7280; font-size:14px; }
-.close{
-  appearance:none; border:0; background:transparent;
-  font-size: 22px; line-height: 1; cursor:pointer;
-  color:#94a3b8; padding: 6px; border-radius: 10px;
-}
-.close:hover{ color:#0f172a; background:#f3f4f6; }
-
-/* Body modal – cuộn trong nếu dài */
-.dBody{ padding: 18px 22px 22px; overflow:auto; }
-.loading, .empty{ text-align:center; color:#6b7280; padding:24px 0; }
-
-/* Danh sách phòng khám */
-.clinicGrid{ display:grid; grid-template-columns: 1fr; gap:16px; }
-
-/* Card phòng khám */
-.clinicCard{
-  background: #edfff7;
-  border: 2px solid #86efac;
+/* ===== Card dịch vụ ===== */
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
   border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 8px 20px rgba(16,185,129,.10);
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(16,24,40,.06);
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
 }
-.cRow{ display:flex; align-items:center; gap:12px; }
-.cIcon{
-  width:42px; height:42px; border-radius: 12px;
-  display:grid; place-items:center;
-  background:#22c55e; color:#fff; font-weight:800;
+.skeleton {
+  background: linear-gradient(90deg, #f3f4f6 25%, #eef2f7 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: sk 1.4s ease infinite;
 }
-.cName{ font-weight:800; font-size:16px; flex:1 1 auto; }
-.cOk{ color:#16a34a; font-weight:800; }
-.cMeta{ color:#475569; margin:10px 0 12px 2px; }
-.hrThin{ height:1px; background:#0f172a1a; margin:8px 0 12px; border-radius:999px; }
+@keyframes sk { 0%{background-position:100% 50%} 100%{background-position:0 50%} }
 
-/* Tông màu nút Bootstrap */
-:global(.btn-success){
-  background:#16a34a; border-color:#16a34a; font-weight:700;
+/* --- HEAD: đặt giá xuống dòng dưới để không chèn tên --- */
+.head {
+  display: grid;
+  grid-template-columns: 44px 1fr;        /* 2 cột: icon | nội dung */
+  grid-auto-rows: min-content;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
 }
-:global(.btn-success:hover){ filter:brightness(1.05); }
-:global(.btn-primary){ font-weight:700; }
+.iconBox {
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  background: #eef2ff; color: #4f46e5;
+  border-radius: 10px; font-size: 22px;
+  grid-column: 1; grid-row: 1 / span 2;   /* icon chiếm 2 hàng */
+}
+.titleWrap { min-width: 0; grid-column: 2; grid-row: 1; }
+.title {
+  font-weight: 700; font-size: 1.05rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.subtitle {
+  margin-top: 2px; font-size: .88rem; color: #6b7280;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
-/* ===== Responsive ===== */
-@media (max-width: 1200px){
-  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+/* Giá & badge ở hàng 2, dưới tiêu đề */
+.price {
+  grid-column: 2; grid-row: 2;
+  margin-top: 2px;
+  color: #16a34a; font-weight: 800;
+  display: inline-flex; align-items: center; gap: 8px;
+  white-space: nowrap;
 }
-@media (max-width: 768px){
-  :global(:root){
-    --shell-w: 96vw;
-    --modal-w: 96vw;
-    --modal-shift: 8vh;
-  }
-  .grid{ grid-template-columns: 1fr; gap:16px; }
-  .hero h2{ font-size: 26px; }
+.oldPrice { text-decoration: line-through; opacity: .55; font-weight: 600; }
+.badge {
+  font-size: .73rem; line-height: 1;
+  padding: .22rem .5rem;
+  border-radius: 999px;
+  background: #e8f7ee; color: #137333; font-weight: 800;
+}
+
+/* ===== Meta ===== */
+.meta {
+  margin: 10px 0 12px; padding: 0 4px;
+  list-style: none; color: #6b7280; font-size: .95rem;
+}
+.meta li { margin: 2px 0; }
+
+.hr, .hrThin { width: 100%; height: 1px; background: #eef2f7; margin: 10px 0; }
+.hrThin { margin: 8px 0; }
+
+/* ===== Modal chung ===== */
+.modal {
+  position: fixed; inset: 0; z-index: 1050;
+  display: grid; place-items: center; padding: 24px 12px;
+}
+.backdrop { position: absolute; inset: 0; background: rgba(15,23,42,.55); backdrop-filter: blur(2px); }
+.dialog {
+  position: relative; width: 100%; max-width: 820px; background: #fff;
+  border-radius: 18px; box-shadow: 0 24px 64px rgba(2,6,23,.18); overflow: hidden;
+  max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+  transform: translateY(0) scale(1); animation: pop .12s ease-out;
+}
+@keyframes pop { from { transform: translateY(8px) scale(.98); opacity: .8; } to { transform: translateY(0) scale(1); opacity: 1; } }
+.dHead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #eef2f7; background: #fafafa;
+}
+.dTitle { font-size: 1.35rem; font-weight: 800; }
+.dSub { color: #6b7280; margin-top: 2px; }
+.dHint { color:#0f766e; margin-top:6px; font-weight:600; }
+.close { border: none; background: transparent; font-size: 22px; opacity: .6; cursor: pointer; }
+.dBody { padding: 16px 20px; overflow: auto; }
+
+/* ===== Card phòng khám ===== */
+.clinicGrid { display: grid; gap: 12px; grid-template-columns: repeat(1, minmax(0, 1fr)); }
+@media (min-width: 640px) { .clinicGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.clinicCard { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #fbfefd; }
+.cRow { display:flex; align-items:center; gap:10px; }
+.cIcon { font-size: 20px; }
+.cName { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cOk { margin-left: auto; color: #16a34a; font-weight: 800; }
+.cMeta { margin-top: 6px; color:#6b7280; font-size:.95rem; }
+
+/* ===== Modal lịch ===== */
+.monthNav { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 10px; }
+.monthLabel { font-weight: 800; }
+
+.calendarGrid {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+}
+.calendarGrid::-webkit-scrollbar { height: 8px; }
+.calendarGrid::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 999px; }
+.calCell {
+  min-width: 92px; border: 1px solid #e5e7eb; background: #fff;
+  border-radius: 12px; padding: 10px; text-align: center;
+  scroll-snap-align: start; transition: border-color .15s, box-shadow .15s;
+}
+.calCell:hover { border-color:#3b82f6; box-shadow: 0 6px 18px rgba(2,6,23,.06); }
+.calCell.active { outline: 2px solid #16a34a; outline-offset: 2px; }
+.calDay { font-size: 1.15rem; font-weight: 800; }
+.calLeft { font-size: .9rem; color:#6b7280; }
+
+.hint, .empty, .loading { color:#6b7280; }
+
+/* ===== Danh sách ca ===== */
+.shiftList { display: flex; flex-direction: column; gap: 10px; }
+.shiftRow {
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; background: #fff;
+}
+.shiftName { font-weight: 700; }
+.shiftTime, .shiftMeta { color:#6b7280; font-size:.95rem; }
+
+/* ===== tiện ích ===== */
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== Mobile tweaks ===== */
+@media (max-width: 480px) {
+  .dialog { max-width: 94vw; border-radius: 14px; }
+  .modal { padding: 12px; }
 }

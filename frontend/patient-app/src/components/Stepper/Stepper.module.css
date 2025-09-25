@@ -1,111 +1,130 @@
-/* ===== Stepper.module.css (fixed under header) ===== */
+/* ========= STEPper – fixed below header, pretty like screenshot ========= */
 
-/* Biến toàn cục (fallback) */
+/* Global fallback vars (có thể override ở :root app) */
 :global(:root){
-  --header-h: 84px;   /* đo offsetHeight của .header của bạn */
-  --stepper-h: 72px;  /* chiều cao thanh step */
-  --c-primary: #2563eb;
+  --header-h: 84px;            /* chiều cao header của bạn */
+  --stepper-h: 76px;           /* chiều cao thanh step */
+  --c-primary: #2563eb;        /* xanh dương đang làm */
   --c-primary-600:#1d4ed8;
-  --c-done:#16a34a;
-  --c-text:#0f172a;
-  --c-muted:#64748b;
+  --c-done:#16a34a;            /* xanh lá hoàn tất */
+  --c-muted:#64748b;           /* xám nhạt */
+  --c-text:#0f172a;            /* text chính */
 }
 
-/* Spacer để chừa chỗ cho thanh step (vì fixed không chiếm layout) */
+/* Spacer để chừa chỗ (vì .wrap fixed không chiếm layout) */
 .spacer{ height: var(--stepper-h); }
 
-/* Thanh step – luôn cố định sát dưới header */
+/* Thanh step */
 .wrap{
   position: fixed;
   top: var(--header-h);
   left: 0; right: 0;
-  z-index: 19; /* nhỏ hơn header (20) */
-  display:flex; align-items:center; gap:28px;
-  max-width:1100px; margin:0 auto;
-  padding:12px 16px;
-  border-radius:18px;
-  background:linear-gradient(180deg,#fff,#f8fafc);
-  box-shadow:0 8px 30px rgba(15,23,42,.06), inset 0 1px 0 #fff;
-  overflow:hidden;
+  z-index: 19;                  /* nhỏ hơn header */
   height: var(--stepper-h);
+
+  display: flex; align-items: center; gap: 28px;
+  max-width: 1200px; margin: 0 auto;
+  padding: 12px 18px;
+
+  background: linear-gradient(180deg,#ffffff 0%, #f7f9fd 100%);
+  border-radius: 18px;
+  box-shadow:
+    0 10px 28px rgba(2,6,23,.08),
+    inset 0 1px 0 rgba(255,255,255,.9);
 }
 
-/* Mỗi step chiếm đều không co lệch */
+/* Mỗi step chiếm đều */
 .step{
-  position:relative;
-  display:flex; align-items:center; gap:12px;
-  flex:1 1 0; min-width:0;
+  flex: 1 1 0; min-width: 0;
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
 }
 
-/* Vòng số/tick */
+/* Vòng số / tick */
 .circle{
-  width:42px; height:42px; border-radius:999px;
-  display:grid; place-items:center;
-  font-weight:800; font-size:16px;
-  color:var(--c-primary); background:#eef2ff;
-  border:2px solid #c7d2fe;
-  box-shadow:inset 0 3px 10px rgba(29,78,216,.08), 0 2px 0 #fff;
-  flex:0 0 auto;
-}
-.tick{ font-size:16px; line-height:1; }
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 999px;
+  display: grid; place-items: center;
 
-/* Text */
-.texts{ display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+  font-weight: 800; font-size: 16px;
+  color: var(--c-primary);
+  background: #eef2ff;
+  border: 2px solid #c7d2fe;
+  box-shadow: inset 0 4px 10px rgba(29,78,216,.08), 0 2px 0 #fff;
+}
+.tick{ font-size: 16px; line-height: 1; }
+
+/* Texts */
+.texts{ display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .caption{
-  font-size:11px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--c-muted); font-weight:700;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  font-weight: 700;
 }
 .label{
-  font-size:16px; font-weight:800; color:var(--c-text);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-size: 16px; font-weight: 800; color: var(--c-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* Line nối – gradient, bo tròn */
+/* Đường nối giữa các bước */
 .line{
-  position:absolute; left:calc(100% + 12px); top:50%;
-  transform:translateY(-50%);
-  height:8px; width:clamp(28px, 9vw, 140px);
-  border-radius:999px;
-  background:linear-gradient(90deg,#e5e7eb 0%, #eef2f7 100%);
-  filter:saturate(.95);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%; transform: translateY(-50%);
+  height: 8px;
+  width: clamp(28px, 9vw, 140px);
+  border-radius: 999px;
+  background: linear-gradient(90deg,#e6e9f1 0%, #eef2f7 100%);
+  filter: saturate(.96);
 }
 
-/* ===== States ===== */
+/* ======= STATES ======= */
 .active .circle{
-  background:var(--c-primary);
-  border-color:var(--c-primary-600);
-  color:#fff;
-  box-shadow:0 8px 20px rgba(37,99,235,.28);
+  background: var(--c-primary);
+  border-color: var(--c-primary-600);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(37,99,235,.28);
 }
-.active .label{ color:var(--c-primary-600); }
+.active .label{ color: var(--c-primary-600); }
+.active .line{
+  background: linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%);
+}
 
 .done .circle{
-  background:var(--c-done);
-  border-color:var(--c-done);
-  color:#fff;
-  box-shadow:0 8px 20px rgba(22,163,74,.25);
+  background: var(--c-done);
+  border-color: var(--c-done);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(22,163,74,.25);
 }
 .done .line{
-  background:linear-gradient(90deg,#16a34a 0%, #22c55e 100%);
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
 }
 
-/* ===== Responsive ===== */
+/* chưa làm (todo) giữ mặc định */
+
+/* ======= RESPONSIVE ======= */
+@media (max-width: 1200px){
+  .wrap{ max-width: 98%; }
+}
 @media (max-width: 992px){
-  :global(:root){ --header-h: 72px; --stepper-h: 64px; }
-  .wrap{ gap:22px; padding:10px 12px; border-radius:16px; }
-  .circle{ width:38px; height:38px; font-size:15px; }
-  .label{ font-size:15px; }
-  .line{ height:7px; width:clamp(24px, 12vw, 110px); left:calc(100% + 10px); }
+  :global(:root){ --header-h: 72px; --stepper-h: 66px; }
+  .wrap{ gap: 22px; padding: 10px 14px; border-radius: 16px; }
+  .circle{ width: 40px; height: 40px; font-size: 15px; }
+  .label{ font-size: 15px; }
+  .line{ height: 7px; width: clamp(24px, 12vw, 110px); left: calc(100% + 10px); }
 }
 @media (max-width: 768px){
-  :global(:root){ --header-h: 64px; --stepper-h: 56px; }
-  .wrap{ gap:16px; padding:8px 10px; }
-  .circle{ width:34px; height:34px; font-size:14px; }
-  .caption{ font-size:10px; }
-  .label{ font-size:14px; }
-  .line{ height:6px; width:clamp(18px, 14vw, 90px); left:calc(100% + 8px); }
+  :global(:root){ --header-h: 64px; --stepper-h: 58px; }
+  .wrap{ gap: 16px; padding: 8px 10px; }
+  .circle{ width: 36px; height: 36px; font-size: 14px; }
+  .caption{ font-size: 10px; }
+  .label{ font-size: 14px; }
+  .line{ height: 6px; width: clamp(18px, 14vw, 90px); left: calc(100% + 8px); }
 }
 @media (max-width: 480px){
-  .wrap{ gap:12px; padding:6px 8px; }
-  .label{ max-width:110px; }
+  .wrap{ gap: 12px; padding: 6px 8px; }
+  .label{ max-width: 120px; }
 }

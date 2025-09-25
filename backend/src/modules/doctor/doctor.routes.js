@@ -1,3 +1,4 @@
+// src/modules/doctor/doctor.routes.js
 import { Router } from "express";
 import { DoctorController } from "./doctor.controller.js";
 import { authGuard } from "../../core/middlewares/auth.guard.js";
@@ -6,23 +7,15 @@ import { ROLES } from "../../core/auth/roles.js";
 
 const r = Router();
 
-// Public GET
-r.get("/doctors", authGuard(false), DoctorController.list);
-r.get("/doctors/:id", authGuard(false), DoctorController.get);
-r.get("/specialties/:idChuyenKhoa/doctors", authGuard(false), DoctorController.listBySpecialty);
+// Public
+r.get("/doctors", DoctorController.list);
+r.get("/doctors/:id", DoctorController.get);
 
-// Update: cho ADMIN hoặc DOCTOR (staff) sửa
-r.put("/doctors/:id",
-  authGuard(true),
-  requireRole(ROLES.DOCTOR, ROLES.ADMIN),       
-  DoctorController.update
-);
+r.get("/specialties/:idChuyenKhoa/doctors", DoctorController.listBySpecialty);
 
-// Delete: chỉ ADMIN
-r.delete("/doctors/:id",
-  authGuard(true),
-  requireRole(ROLES.ADMIN),
-  DoctorController.remove
-);
+// Admin 
+r.post("/doctors", authGuard(true), requireRole(ROLES.ADMIN), DoctorController.create);
+r.put("/doctors/:id", authGuard(true), requireRole(ROLES.ADMIN, ROLES.DOCTOR), DoctorController.update);
+r.delete("/doctors/:id", authGuard(true), requireRole(ROLES.ADMIN, ROLES.DOCTOR), DoctorController.remove);
 
 export default r;
