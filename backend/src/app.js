@@ -33,7 +33,7 @@ app.use(
 app.use(express.json({ limit: "100kb" }));
 app.use(morgan("dev"));
 
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/healthz", (req, res) => res.send("ok"));
 
 app.use("/api/v1", api);
 
