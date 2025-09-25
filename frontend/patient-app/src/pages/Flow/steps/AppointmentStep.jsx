@@ -26,10 +26,11 @@ export default function AppointmentStep() {
 
   // payment states
   const [payInitLoading, setPayInitLoading] = useState(true);
-  const [payment, setPayment] = useState(null); // {id, status, amount, expireAt, qrUrl, transferContent, ...}
+  const [payment, setPayment] = useState(null); // {id,status,amount,expireAt,qrUrl,transferContent,...}
   const [paid, setPaid] = useState(false);
   const [expired, setExpired] = useState(false);
   const [countdown, setCountdown] = useState("--:--");
+  const [payError, setPayError] = useState("");
 
   const pollRef = useRef(null);
   const countdownRef = useRef(null);
@@ -38,7 +39,7 @@ export default function AppointmentStep() {
   const pickedService = useMemo(() => getFromSS("SELECTED_SERVICE", null), []);
   const resultCache = useMemo(() => getFromSS("APPOINTMENT_RESULT", null), []);
 
-  // ===== Fetch appointment =====
+  /* ========== 1) Load appointment ========== */
   useEffect(() => {
     (async () => {
       setLoading(true); setError("");
@@ -65,71 +66,97 @@ export default function AppointmentStep() {
       clearInterval(pollRef.current);
       clearInterval(countdownRef.current);
     };
-  }, [idFromQuery]);
+  }, [idFromQuery, resultCache?.idLichHen]);
 
-  // ===== Khi có appointment -> khởi tạo/tái sử dụng đơn thanh toán =====
+  /* ========== 2) Khi có appointment -> init/tái sử dụng order ========== */
   useEffect(() => {
     if (!appt?.idLichHen) return;
-    if (Number(appt?.trangThai) === 2) { // đã thanh toán ở server
+
+    // đã thanh toán server-side rồi
+    if (Number(appt?.trangThai) === 2) {
       setPaid(true);
+      setPayment(null);
       setPayInitLoading(false);
+      setExpired(false);
+      setCountdown("--:--");
+      clearInterval(pollRef.current);
+      clearInterval(countdownRef.current);
       return;
     }
+
     startPayment(appt.idLichHen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appt?.idLichHen]);
 
   async function startPayment(idLichHen) {
     try {
+      setPayError("");
       setPayInitLoading(true);
       setExpired(false);
+      setPaid(false);
+      setPayment(null);
+      setCountdown("--:--");
       clearInterval(pollRef.current);
       clearInterval(countdownRef.current);
 
-      // Server sẽ tái sử dụng order pending còn hạn, hoặc tạo order mới
+      // Server sẽ dùng order pending còn hạn (nếu có) hoặc tạo mới
       const { data } = await client.post("/payments", { idLichHen });
       setPayment(data);
 
-      // countdown
-      startCountdown(data.expireAt);
+      // Bắt đầu đếm ngược (nếu server trả expireAt)
+      if (data?.expireAt) startCountdown(data.expireAt);
 
-      // poll trạng thái
+      // Poll trạng thái
       pollRef.current = setInterval(async () => {
         try {
           const rs = await client.get(`/payments/${data.id}`);
           const p = rs?.data || {};
-          setPayment(prev => ({ ...prev, status: p.status, paidAt: p.paidAt }));
+          setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
+
           if (p.status === "PAID") {
             setPaid(true);
             clearInterval(pollRef.current);
             clearInterval(countdownRef.current);
-            // Đồng bộ lại appointment (optional)
+            // đồng bộ lại appointment
             try {
               const rs2 = await client.get(`/appointments/${idLichHen}`);
               setAppt(rs2?.data);
             } catch {}
           } else {
-            // kiểm tra hết hạn từ server-side thời gian hiện hành
-            const now = Date.now();
-            const exp = new Date(data.expireAt.replace(" ", "T")).getTime();
-            if (now >= exp) {
-              setExpired(true);
-              clearInterval(pollRef.current);
-              clearInterval(countdownRef.current);
+            // kiểm tra hết hạn
+            if (data?.expireAt) {
+              const nowMs = Date.now();
+              const expMs = toMs(data.expireAt);
+              if (expMs && nowMs >= expMs) {
+                setExpired(true);
+                clearInterval(pollRef.current);
+                clearInterval(countdownRef.current);
+              }
             }
           }
-        } catch {}
+        } catch {
+          // bỏ qua tick lỗi
+        }
       }, 3000);
     } catch (e) {
-      console.error(e);
+      setPayError(e?.response?.data?.message || e?.message || "Không thể tạo đơn thanh toán");
     } finally {
       setPayInitLoading(false);
     }
   }
 
+  function toMs(dtStr) {
+    // server trả "YYYY-MM-DD HH:mm:ss" -> chuẩn hóa
+    if (!dtStr) return null;
+    const iso = dtStr.includes("T") ? dtStr : dtStr.replace(" ", "T");
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) ? t : null;
+  }
+
   function startCountdown(expireAtStr) {
     const tick = () => {
-      const end = new Date(expireAtStr.replace(" ", "T")).getTime();
+      const end = toMs(expireAtStr);
+      if (!end) { setCountdown("--:--"); return; }
       const diff = Math.max(0, Math.floor((end - Date.now()) / 1000));
       const mm = String(Math.floor(diff / 60)).padStart(2, "0");
       const ss = String(diff % 60).padStart(2, "0");
@@ -173,12 +200,15 @@ export default function AppointmentStep() {
   }
   if (!appt) return null;
 
-  // ===== Giá hiển thị (ưu tiên giá server) =====
+  /* ========== Giá hiển thị (ưu tiên server) ========== */
   const baseFee = Number(appt.phiKhamGoc ?? pickedService?.price ?? 0);
-  const priceShow = Number(appt.phiDaGiam ?? pickedService?.priceInfo?.total ?? baseFee);
-  const discountNote = (appt.phiDaGiam != null && appt.phiDaGiam !== baseFee)
-    ? "Áp dụng giảm 50% BHYT"
-    : (pickedService?.priceInfo?.note || "");
+  const priceShow = Number(
+    appt.phiDaGiam ?? pickedService?.priceInfo?.total ?? baseFee
+  );
+  const discountNote =
+    appt.phiDaGiam != null && appt.phiDaGiam !== baseFee
+      ? "Áp dụng giảm 50% BHYT"
+      : (pickedService?.priceInfo?.note || "");
 
   const bn = patient || {};
   const svName = pickedService?.name || appt.tenChuyenKhoa || "--";
@@ -211,7 +241,6 @@ export default function AppointmentStep() {
             <div className={s.row}><span>Bác sĩ:</span><b>{bsName}</b></div>
             <div className={s.row}><span>Số thứ tự:</span><b>{appt.sttKham ?? "--"}</b></div>
 
-            {/* Giá (ưu tiên theo server) */}
             <div className={s.row}>
               <span>Giá:</span>
               <b>
@@ -220,7 +249,10 @@ export default function AppointmentStep() {
               </b>
             </div>
 
-            <div className={s.row}><span>Thời gian:</span><b>{appt.gioHen?.slice(0,5)} {formatDateVN(appt.ngayHen)}</b></div>
+            <div className={s.row}>
+              <span>Thời gian:</span>
+              <b>{appt.gioHen?.slice(0,5)} {formatDateVN(appt.ngayHen)}</b>
+            </div>
 
             <div className={s.row}><span>Trạng thái thanh toán:</span>
               {paid ? (
@@ -238,20 +270,19 @@ export default function AppointmentStep() {
             {payInitLoading ? (
               <div className={s.loading}>Đang tạo mã thanh toán…</div>
             ) : paid ? (
-              <div className={s.paidBox}>
-                ✅ Thanh toán thành công!
-              </div>
+              <div className={s.paidBox}>✅ Thanh toán thành công!</div>
+            ) : payError ? (
+              <div className={s.error}>{payError}</div>
             ) : payment ? (
               <>
                 <img className={s.qrImg} alt="QR thanh toán" src={payment.qrUrl} />
                 <div className={s.qrMeta}>
                   <div>Số tiền: <b>{Number(payment.amount).toLocaleString("vi-VN")} đ</b></div>
                   <div>Nội dung CK: <code>{payment.transferContent}</code></div>
-                  {!expired ? (
-                    <div>Hết hạn sau: <b>{countdown}</b></div>
-                  ) : (
-                    <div className={s.warn}>Mã đã hết hạn</div>
-                  )}
+                  {payment.expireAt ? (
+                    !expired ? <div>Hết hạn sau: <b>{countdown}</b></div>
+                              : <div className={s.warn}>Mã đã hết hạn</div>
+                  ) : null}
                 </div>
                 <div className="mt-2">
                   <button
