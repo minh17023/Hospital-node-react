@@ -72,7 +72,7 @@ export default function AppointmentStep() {
   useEffect(() => {
     if (!appt?.idLichHen) return;
 
-    // đã thanh toán server-side rồi
+    // ĐÃ thanh toán server-side (chỉ xảy ra khi webhook đã cập nhật trước đó)
     if (Number(appt?.trangThai) === 2) {
       setPaid(true);
       setPayment(null);
@@ -106,17 +106,18 @@ export default function AppointmentStep() {
       // Bắt đầu đếm ngược (nếu server trả expireAt)
       if (data?.expireAt) startCountdown(data.expireAt);
 
-      // Poll trạng thái
+      // Poll trạng thái đơn đến khi PAID
       pollRef.current = setInterval(async () => {
         try {
           const rs = await client.get(`/payments/${data.id}`);
           const p = rs?.data || {};
           setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
+
           if (p.status === "PAID") {
             setPaid(true);
             clearInterval(pollRef.current);
             clearInterval(countdownRef.current);
-            // đồng bộ lại appointment
+            // đồng bộ lại appointment (trangThai=2)
             try {
               const rs2 = await client.get(`/appointments/${idLichHen}`);
               setAppt(rs2?.data);
@@ -166,7 +167,13 @@ export default function AppointmentStep() {
     countdownRef.current = setInterval(tick, 1000);
   }
 
-  const onPrint = () => window.print();
+  const onPrint = () => {
+    if (!paid) {
+      alert("Vui lòng hoàn tất thanh toán trước khi in phiếu khám.");
+      return;
+    }
+    window.print();
+  };
   const goHome = () => navigate("/menu");
 
   if (loading) {
@@ -298,7 +305,14 @@ export default function AppointmentStep() {
 
         <div className={s.actions}>
           <button className="btn btn-secondary" onClick={goHome}>Về trang chủ</button>
-          <button className="btn btn-primary" onClick={onPrint}>In Phiếu Khám</button>
+          <button
+            className="btn btn-primary"
+            onClick={onPrint}
+            disabled={!paid}
+            title={paid ? "In phiếu khám" : "Cần hoàn tất thanh toán để in phiếu"}
+          >
+            {paid ? "In Phiếu Khám" : "Chưa thể in"}
+          </button>
         </div>
 
         <div className={s.help}>

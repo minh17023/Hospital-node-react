@@ -33,9 +33,11 @@ export const PaymentModel = {
 
   async findById(idDonHang) {
     const [rows] = await pool.query(
-      `SELECT d.*, l.*, b.soCCCD
+      `SELECT d.*, d.trangThai AS dhTrangThai,
+              l.*, l.trangThai AS lhTrangThai,
+              b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         JOIN LichHen l  ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
         WHERE d.idDonHang=? LIMIT 1`, [idDonHang]
     );
@@ -44,9 +46,11 @@ export const PaymentModel = {
 
   async listByAppointment(idLichHen) {
     const [rows] = await pool.query(
-      `SELECT d.*, l.*, b.soCCCD
+      `SELECT d.*, d.trangThai AS dhTrangThai,
+              l.*, l.trangThai AS lhTrangThai,
+              b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         JOIN LichHen l  ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
         WHERE d.idLichHen=?
         ORDER BY d.createdAt DESC, d.idDonHang DESC`, [idLichHen]
@@ -57,20 +61,25 @@ export const PaymentModel = {
   async findByReference(referenceCode, conn = pool) {
     const [rows] = await conn.query(
       `SELECT idDonHang, idLichHen, soTien, trangThai
-         FROM ${T_ORDER} WHERE referenceCode=? LIMIT 1`, [referenceCode]
+         FROM ${T_ORDER}
+        WHERE referenceCode=? LIMIT 1`,
+      [referenceCode]
     );
     return rows[0] || null;
   },
 
   async findLatestByAppointment(idLichHen, conn = pool) {
     const [rows] = await conn.query(
-      `SELECT d.*, l.*, b.soCCCD
+      `SELECT d.*, d.trangThai AS dhTrangThai,
+              l.*, l.trangThai AS lhTrangThai,
+              b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         JOIN LichHen l  ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
         WHERE d.idLichHen=?
         ORDER BY d.createdAt DESC, d.idDonHang DESC
-        LIMIT 1`, [idLichHen]
+        LIMIT 1`,
+      [idLichHen]
     );
     return rows[0] || null;
   },
@@ -78,8 +87,10 @@ export const PaymentModel = {
   async markPaid(idDonHang, conn = pool) {
     const [rs] = await conn.query(
       `UPDATE ${T_ORDER}
-          SET trangThai=1, paidAt=NOW(), ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
-        WHERE idDonHang=?`, [idDonHang]
+          SET trangThai=1, paidAt=NOW(),
+              ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
+        WHERE idDonHang=?`,
+      [idDonHang]
     );
     return rs.affectedRows || 0;
   },
@@ -87,10 +98,12 @@ export const PaymentModel = {
   async updateAppointmentStatusPaid(idLichHen, conn = pool) {
     await conn.query(
       `UPDATE LichHen SET trangThai=2
-        WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`, [idLichHen]
+        WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`,
+      [idLichHen]
     );
   },
 
+  // luôn log webhook (kể cả 401)
   async logWebhook({ httpStatus, body }, conn = pool) {
     const b = body || {};
     try {
@@ -109,7 +122,7 @@ export const PaymentModel = {
           b.transferAmount || null,
           b.referenceCode || null,
           b.accumulated || null,
-          b.content || null
+          b.content || null,
         ]
       );
     } catch {}

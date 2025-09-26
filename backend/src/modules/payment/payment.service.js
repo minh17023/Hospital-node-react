@@ -9,17 +9,15 @@ function genReference() {
        + crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
-/** Build link ảnh QR theo spec Sepay */
+/** QR Sepay: https://qr.sepay.vn/img?acc=...&bank=...&amount=...&des=... */
 function buildSepayQR({ amount, addInfo }) {
-  const base = env.pay.sepayQrBase;
+  const base = env.pay.sepayQrBase || "https://qr.sepay.vn/img";
   const acc  = env.pay.sepayQrAccount;
   const bank = env.pay.sepayQrBank;
   const template = env.pay.sepayQrTemplate || "qronly";
   const download = env.pay.sepayQrDownload;
 
-  if (!base || !acc || !bank) {
-    throw new AppError(500, "Thiếu cấu hình Sepay QR (BASE/ACCOUNT/BANK)");
-  }
+  if (!acc || !bank) throw new AppError(500, "Thiếu cấu hình Sepay account/bank");
 
   const qs = new URLSearchParams();
   qs.set("acc", acc);
@@ -32,16 +30,25 @@ function buildSepayQR({ amount, addInfo }) {
   return `${base}?${qs.toString()}`;
 }
 
+/** Xác thực webhook: chỉ dùng query ?key=... */
 function checkWebhookAuth(req) {
-  const key = req.query.key
-    || req.headers["x-webhook-key"]
-    || (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  return key && (key === env.pay.sepayWebhookToken || key === env.pay.sepayWebhookKey);
+  const token = (req.query?.key || "").toString();
+  return token && token === env.pay.sepayWebhookToken;
 }
 
+/** Khi Sepay không set referenceCode, rút mã FT... từ content/description */
+function extractRef(body) {
+  const rc = (body?.referenceCode || "").trim();
+  if (rc) return rc;
+  const txt = String(body?.content || body?.description || "");
+  const m = txt.match(/\bFT[A-Z0-9]{6,}\b/);
+  return m ? m[0] : "";
+}
+
+/** Chuẩn hóa object trả FE */
 const toView = (row) => ({
   id: row.idDonHang,
-  status: Number(row.trangThai) === 1 ? "PAID" : "PENDING",
+  status: Number(row.dhTrangThai) === 1 ? "PAID" : "PENDING",
   amount: Number(row.soTien || 0),
   qrUrl: row.qrUrl || "",
   transferContent: row.referenceCode
@@ -96,15 +103,19 @@ export const PaymentService = {
     return rows.map(toView);
   },
 
+  /** Webhook: ghi event + cập nhật đơn */
   async handleSepayWebhook(req) {
     const authorized = checkWebhookAuth(req);
+    // luôn log event (kể cả 401)
     await PaymentModel.logWebhook({ httpStatus: authorized ? 200 : 401, body: req.body });
 
     if (!authorized) throw new AppError(401, "Unauthorized");
 
-    if (String(req.body?.transferType || "").toLowerCase() !== "in") return { success: true };
+    if (String(req.body?.transferType || "").toLowerCase() !== "in") {
+      return { success: true };
+    }
 
-    const referenceCode = (req.body?.referenceCode || "").trim();
+    const referenceCode = extractRef(req.body);
     const amount = Number(req.body?.transferAmount || 0);
     if (!referenceCode || !amount) return { success: true };
 
@@ -113,15 +124,20 @@ export const PaymentService = {
       await conn.beginTransaction();
 
       const order = await PaymentModel.findByReference(referenceCode, conn);
-      if (!order) { await conn.commit(); return { success: true }; }
-      if (order.trangThai === 1) { await conn.commit(); return { success: true, duplicated: true }; }
-      if (Math.abs(order.soTien - amount) !== 0) { await conn.commit(); return { success: true, mismatch: true }; }
+      if (!order) { await conn.commit(); return { success: true, not_found: true }; }
+
+      if (Number(order.trangThai) === 1) { await conn.commit(); return { success: true, duplicated: true }; }
+
+      if (Math.abs(Number(order.soTien) - amount) !== 0) {
+        await conn.commit(); 
+        return { success: true, mismatch: true };
+      }
 
       await PaymentModel.markPaid(order.idDonHang, conn);
       await PaymentModel.updateAppointmentStatusPaid(order.idLichHen, conn);
 
       await conn.commit();
-      return { success: true };
+      return { success: true, updated: true };
     } catch (e) {
       await conn.rollback();
       return { success: true, error: "internal" };
