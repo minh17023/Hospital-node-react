@@ -18,12 +18,12 @@ export const env = {
   },
   corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
   pay: {
-    qrBase: process.env.PAY_QR_BASE || "https://img.vietqr.io/image",
-    bank: process.env.PAY_VIETQR_BANK || "MB",
-    account: process.env.PAY_VIETQR_ACCOUNT || "",
-    accountName: process.env.PAY_VIETQR_ACCOUNT_NAME || "",
-    style: process.env.PAY_VIETQR_STYLE || "compact",
-    ttlMinutes: Number(process.env.PAY_TTL_MINUTES || 15),
+    // Sepay QR (CHÍNH để tạo QR)
+    sepayQrBase: process.env.SEPAY_QR_BASE || "https://qr.sepay.vn/img",
+    sepayQrAccount: process.env.SEPAY_QR_ACCOUNT || "",
+    sepayQrBank: process.env.SEPAY_QR_BANK || "",
+    sepayQrTemplate: process.env.SEPAY_QR_TEMPLATE || "qronly",
+    sepayQrDownload: process.env.SEPAY_QR_DOWNLOAD ?? "",
     sepayWebhookKey: process.env.SEPAY_WEBHOOK_KEY || "",
     sepayWebhookToken: process.env.SEPAY_WEBHOOK_TOKEN || "",
   }

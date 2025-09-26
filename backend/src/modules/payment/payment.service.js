@@ -1,41 +1,57 @@
 import crypto from "crypto";
 import { pool } from "../../config/db.js";
 import { AppError } from "../../core/http/error.js";
+import { env } from "../../config/env.js";
 import { PaymentModel } from "./payment.model.js";
 
-/** Gen mã đối soát (khớp với webhook.referenceCode) */
 function genReference() {
-  return "FT" + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString("hex").toUpperCase();
+  return "FT" + Date.now().toString(36).toUpperCase()
+       + crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
-/** Tạo link ảnh QR Sepay — chỉnh path theo cấu hình Sepay của bạn */
+/** Build link ảnh QR theo spec Sepay */
 function buildSepayQR({ amount, addInfo }) {
-  const base  = process.env.SEPAY_QR_BASE;
-  const bank  = process.env.SEPAY_QR_BANK;
-  const acc   = process.env.SEPAY_QR_ACCOUNT;
-  const name  = encodeURIComponent(process.env.SEPAY_QR_ACCOUNT_NAME || "");
-  const style = process.env.SEPAY_QR_STYLE || "compact";
+  const base = env.pay.sepayQrBase;
+  const acc  = env.pay.sepayQrAccount;
+  const bank = env.pay.sepayQrBank;
+  const template = env.pay.sepayQrTemplate || "qronly";
+  const download = env.pay.sepayQrDownload;
+
+  if (!base || !acc || !bank) {
+    throw new AppError(500, "Thiếu cấu hình Sepay QR (BASE/ACCOUNT/BANK)");
+  }
 
   const qs = new URLSearchParams();
+  qs.set("acc", acc);
+  qs.set("bank", bank);
   if (amount) qs.set("amount", String(amount));
-  if (addInfo) qs.set("addInfo", addInfo);
-  if (name) qs.set("accountName", name);
-  if (style) qs.set("style", style);
+  if (addInfo) qs.set("des", addInfo);
+  if (template) qs.set("template", template);
+  if (download !== "") qs.set("download", String(download));
 
-  // ví dụ: {base}/{BANK}-{ACCOUNT}-qr_only.png?... (đổi cho đúng nhà cung cấp của bạn)
-  return `${base}/${bank}-${acc}-qr_only.png?${qs.toString()}`;
+  return `${base}?${qs.toString()}`;
 }
 
 function checkWebhookAuth(req) {
-  const key =
-    req.query.key ||
-    req.headers["x-webhook-key"] ||
-    (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  return key && (key === process.env.SEPAY_WEBHOOK_TOKEN || key === process.env.SEPAY_WEBHOOK_KEY);
+  const key = req.query.key
+    || req.headers["x-webhook-key"]
+    || (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  return key && (key === env.pay.sepayWebhookToken || key === env.pay.sepayWebhookKey);
 }
 
+const toView = (row) => ({
+  id: row.idDonHang,
+  status: Number(row.trangThai) === 1 ? "PAID" : "PENDING",
+  amount: Number(row.soTien || 0),
+  qrUrl: row.qrUrl || "",
+  transferContent: row.referenceCode
+    ? `${row.referenceCode} LH${row.idLichHen} ${row.soCCCD ? `CCCD:${row.soCCCD}` : ""}`.trim()
+    : (row.ghiChu || ""),
+  paidAt: row.paidAt || null,
+  expireAt: row.expireAt || null,
+});
+
 export const PaymentService = {
-  /** Tạo đơn thanh toán từ idLichHen */
   async create({ idLichHen }) {
     if (!idLichHen) throw new AppError(400, "Thiếu idLichHen");
 
@@ -50,20 +66,18 @@ export const PaymentService = {
       if (!soTien) throw new AppError(400, "phiDaGiam không hợp lệ");
 
       const referenceCode = genReference();
-      // Ghi chú/addInfo chứa cả CCCD để tra soát
       const addInfo = `${referenceCode} LH${idLichHen} CCCD:${appt.soCCCD || "N/A"}`;
       const qrUrl = buildSepayQR({ amount: soTien, addInfo });
 
       await PaymentModel.upsertByAppointment({
-        idLichHen, referenceCode, soTien, qrUrl,
-        ghiChu: `create:${addInfo}`
+        idLichHen, referenceCode, soTien, qrUrl, ghiChu: `create:${addInfo}`
       }, conn);
 
-      const order = await PaymentModel.findByReference(referenceCode, conn);
-      const full  = await PaymentModel.findById(order?.idDonHang, conn);
+      const full = await PaymentModel.findLatestByAppointment(idLichHen, conn);
+      if (!full) throw new AppError(500, "Không đọc được đơn sau khi tạo");
 
       await conn.commit();
-      return full;
+      return toView(full);
     } catch (e) {
       await conn.rollback();
       throw e;
@@ -72,23 +86,23 @@ export const PaymentService = {
     }
   },
 
-  getById(id) {
-    return PaymentModel.findById(Number(id));
+  async getById(id) {
+    const row = await PaymentModel.findById(Number(id));
+    return row ? toView(row) : null;
   },
 
-  listByAppointment(idLichHen) {
-    return PaymentModel.listByAppointment(Number(idLichHen));
+  async listByAppointment(idLichHen) {
+    const rows = await PaymentModel.listByAppointment(Number(idLichHen));
+    return rows.map(toView);
   },
 
-  /** Xử lý webhook Sepay */
   async handleSepayWebhook(req) {
     const authorized = checkWebhookAuth(req);
     await PaymentModel.logWebhook({ httpStatus: authorized ? 200 : 401, body: req.body });
 
     if (!authorized) throw new AppError(401, "Unauthorized");
 
-    const type = String(req.body?.transferType || "").toLowerCase();
-    if (type !== "in") return { success: true };
+    if (String(req.body?.transferType || "").toLowerCase() !== "in") return { success: true };
 
     const referenceCode = (req.body?.referenceCode || "").trim();
     const amount = Number(req.body?.transferAmount || 0);
@@ -100,14 +114,8 @@ export const PaymentService = {
 
       const order = await PaymentModel.findByReference(referenceCode, conn);
       if (!order) { await conn.commit(); return { success: true }; }
-
       if (order.trangThai === 1) { await conn.commit(); return { success: true, duplicated: true }; }
-
-      // khớp số tiền tuyệt đối
-      if (Math.abs(order.soTien - amount) !== 0) {
-        await conn.commit();
-        return { success: true, mismatch: true };
-      }
+      if (Math.abs(order.soTien - amount) !== 0) { await conn.commit(); return { success: true, mismatch: true }; }
 
       await PaymentModel.markPaid(order.idDonHang, conn);
       await PaymentModel.updateAppointmentStatusPaid(order.idLichHen, conn);

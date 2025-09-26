@@ -4,19 +4,16 @@ const T_ORDER = "DonHang";
 const T_EVENT = "WebhookSepayEvent";
 
 export const PaymentModel = {
-  // Lấy info lịch hẹn (phiDaGiam) + bệnh nhân (CCCD) để tạo đơn
   async getAppointmentInfo(idLichHen, conn = pool) {
     const [rows] = await conn.query(
       `SELECT l.*, b.soCCCD
          FROM LichHen l
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE l.idLichHen=? LIMIT 1`,
-      [idLichHen]
+        WHERE l.idLichHen=? LIMIT 1`, [idLichHen]
     );
     return rows[0] || null;
   },
 
-  // Tạo/ghi đè đơn theo lịch hẹn (idempotent theo idLichHen)
   async upsertByAppointment({ idLichHen, referenceCode, soTien, qrUrl, ghiChu }, conn = pool) {
     const [rs] = await conn.query(
       `INSERT INTO ${T_ORDER}
@@ -40,8 +37,7 @@ export const PaymentModel = {
          FROM ${T_ORDER} d
          JOIN LichHen l ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE d.idDonHang=? LIMIT 1`,
-      [idDonHang]
+        WHERE d.idDonHang=? LIMIT 1`, [idDonHang]
     );
     return rows[0] || null;
   },
@@ -53,8 +49,7 @@ export const PaymentModel = {
          JOIN LichHen l ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
         WHERE d.idLichHen=?
-        ORDER BY d.createdAt DESC`,
-      [idLichHen]
+        ORDER BY d.createdAt DESC, d.idDonHang DESC`, [idLichHen]
     );
     return rows;
   },
@@ -62,9 +57,20 @@ export const PaymentModel = {
   async findByReference(referenceCode, conn = pool) {
     const [rows] = await conn.query(
       `SELECT idDonHang, idLichHen, soTien, trangThai
-         FROM ${T_ORDER}
-        WHERE referenceCode=? LIMIT 1`,
-      [referenceCode]
+         FROM ${T_ORDER} WHERE referenceCode=? LIMIT 1`, [referenceCode]
+    );
+    return rows[0] || null;
+  },
+
+  async findLatestByAppointment(idLichHen, conn = pool) {
+    const [rows] = await conn.query(
+      `SELECT d.*, l.*, b.soCCCD
+         FROM ${T_ORDER} d
+         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
+        WHERE d.idLichHen=?
+        ORDER BY d.createdAt DESC, d.idDonHang DESC
+        LIMIT 1`, [idLichHen]
     );
     return rows[0] || null;
   },
@@ -73,16 +79,15 @@ export const PaymentModel = {
     const [rs] = await conn.query(
       `UPDATE ${T_ORDER}
           SET trangThai=1, paidAt=NOW(), ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
-        WHERE idDonHang=?`,
-      [idDonHang]
+        WHERE idDonHang=?`, [idDonHang]
     );
     return rs.affectedRows || 0;
   },
 
   async updateAppointmentStatusPaid(idLichHen, conn = pool) {
     await conn.query(
-      `UPDATE LichHen SET trangThai=2 WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`,
-      [idLichHen]
+      `UPDATE LichHen SET trangThai=2
+        WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`, [idLichHen]
     );
   },
 
@@ -104,9 +109,9 @@ export const PaymentModel = {
           b.transferAmount || null,
           b.referenceCode || null,
           b.accumulated || null,
-          b.content || null,
+          b.content || null
         ]
       );
-    } catch { /* ignore log error */ }
+    } catch {}
   },
 };

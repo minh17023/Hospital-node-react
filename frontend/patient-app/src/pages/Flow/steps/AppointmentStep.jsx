@@ -14,24 +14,6 @@ const getPatient = () => {
   catch { return null; }
 };
 
-// Chuẩn hoá bản ghi DonHang (BE) -> object payment (FE)
-function normalizeOrder(row) {
-  if (!row) return null;
-  return {
-    id: row.idDonHang,
-    status: Number(row.trangThai) === 1 ? "PAID" : "PENDING",
-    amount: Number(row.soTien || 0),
-    qrUrl: row.qrUrl || "",
-    // Hiển thị nội dung CK: ưu tiên referenceCode + LH + CCCD
-    transferContent: row.referenceCode
-      ? `${row.referenceCode} LH${row.idLichHen} ${row.soCCCD ? `CCCD:${row.soCCCD}` : ""}`.trim()
-      : (row.ghiChu || ""),
-    paidAt: row.paidAt || null,
-    // BE chưa có expireAt -> vẫn map nếu sau này bổ sung cột/field
-    expireAt: row.expireAt || null,
-  };
-}
-
 export default function AppointmentStep() {
   const { mode } = useParams(); // "bhyt" | "service" | "booking"
   const navigate = useNavigate();
@@ -119,18 +101,16 @@ export default function AppointmentStep() {
 
       // Server dùng order pending còn hạn (nếu có) hoặc tạo mới
       const { data } = await client.post("/payments", { idLichHen });
-      const order = normalizeOrder(data);
-      setPayment(order);
+      setPayment(data);
 
       // Bắt đầu đếm ngược (nếu server trả expireAt)
-      if (order?.expireAt) startCountdown(order.expireAt);
+      if (data?.expireAt) startCountdown(data.expireAt);
 
       // Poll trạng thái
       pollRef.current = setInterval(async () => {
         try {
-          const rs = await client.get(`/payments/${order.id}`);
-          const p = normalizeOrder(rs?.data || {});
-          // cập nhật trạng thái
+          const rs = await client.get(`/payments/${data.id}`);
+          const p = rs?.data || {};
           setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
           if (p.status === "PAID") {
             setPaid(true);
@@ -141,10 +121,10 @@ export default function AppointmentStep() {
               const rs2 = await client.get(`/appointments/${idLichHen}`);
               setAppt(rs2?.data);
             } catch {}
-          } else if (order?.expireAt) {
+          } else if (data?.expireAt) {
             // kiểm tra hết hạn nếu có expireAt
             const nowMs = Date.now();
-            const expMs = toMs(order.expireAt);
+            const expMs = toMs(data.expireAt);
             if (expMs && nowMs >= expMs) {
               setExpired(true);
               clearInterval(pollRef.current);
