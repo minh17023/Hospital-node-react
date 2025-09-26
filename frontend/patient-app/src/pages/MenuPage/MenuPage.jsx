@@ -138,7 +138,7 @@ export default function MenuPage() {
           <div className="fs-3 text-muted">›</div>
         </button>
 
-        <button type="button" className={s.tile} onClick={() => nav("/results")}>
+        <button type="button" className={s.tile} onClick={() => nav("/search")}>
           <div className={s.icon} style={{ background: "#f59e0b", color: "#fff" }}>
             🧾
           </div>

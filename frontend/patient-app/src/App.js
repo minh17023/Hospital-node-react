@@ -7,6 +7,7 @@ import MenuPage from "./pages/MenuPage/MenuPage";
 import RegisterPatient from "./pages/RegisterPatient/RegisterPatient";
 import RegisterBHYT from "./pages/RegisterBHYT/RegisterBHYT";
 import ProfilePage from "./pages/Profile/ProfilePage";
+import ProfileSearch from "./pages/Search/ProfileSearch";
 
 // Flow 3-step chung
 import PatientStep from "./pages/Flow/steps/PatientStep";
@@ -98,6 +99,15 @@ export default function App() {
         element={
           <PageShell title="Tài Khoản" showBack>
             <RequirePatient><ProfilePage /></RequirePatient>
+          </PageShell>
+        }
+      />
+
+      <Route
+        path="/search"
+        element={
+          <PageShell title="Tra Cứu Kết Quả" showBack>
+            <RequirePatient><ProfileSearch /></RequirePatient>
           </PageShell>
         }
       />
