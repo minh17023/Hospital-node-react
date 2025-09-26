@@ -100,13 +100,6 @@ export const PaymentModel = {
     return rs.affectedRows || 0;
   },
 
-  async updateAppointmentStatusPaid(idLichHen, conn = pool) {
-    await conn.query(
-      `UPDATE LichHen SET trangThai=2
-        WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`,
-      [idLichHen]
-    );
-  },
 
   // Log webhook; cho phép ghi đè referenceCode bằng mã bóc từ content
   async logWebhook({ httpStatus, body, overrideRef = null }, conn = pool) {

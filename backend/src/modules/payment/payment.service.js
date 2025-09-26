@@ -157,7 +157,6 @@ export const PaymentService = {
       }
 
       await PaymentModel.markPaid(order.idDonHang, conn);
-      await PaymentModel.updateAppointmentStatusPaid(order.idLichHen, conn);
 
       await conn.commit();
       return { success: true, updated: true };
