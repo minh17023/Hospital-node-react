@@ -14,6 +14,24 @@ const getPatient = () => {
   catch { return null; }
 };
 
+// Chuẩn hoá bản ghi DonHang (BE) -> object payment (FE)
+function normalizeOrder(row) {
+  if (!row) return null;
+  return {
+    id: row.idDonHang,
+    status: Number(row.trangThai) === 1 ? "PAID" : "PENDING",
+    amount: Number(row.soTien || 0),
+    qrUrl: row.qrUrl || "",
+    // Hiển thị nội dung CK: ưu tiên referenceCode + LH + CCCD
+    transferContent: row.referenceCode
+      ? `${row.referenceCode} LH${row.idLichHen} ${row.soCCCD ? `CCCD:${row.soCCCD}` : ""}`.trim()
+      : (row.ghiChu || ""),
+    paidAt: row.paidAt || null,
+    // BE chưa có expireAt -> vẫn map nếu sau này bổ sung cột/field
+    expireAt: row.expireAt || null,
+  };
+}
+
 export default function AppointmentStep() {
   const { mode } = useParams(); // "bhyt" | "service" | "booking"
   const navigate = useNavigate();
@@ -99,20 +117,21 @@ export default function AppointmentStep() {
       clearInterval(pollRef.current);
       clearInterval(countdownRef.current);
 
-      // Server sẽ dùng order pending còn hạn (nếu có) hoặc tạo mới
+      // Server dùng order pending còn hạn (nếu có) hoặc tạo mới
       const { data } = await client.post("/payments", { idLichHen });
-      setPayment(data);
+      const order = normalizeOrder(data);
+      setPayment(order);
 
       // Bắt đầu đếm ngược (nếu server trả expireAt)
-      if (data?.expireAt) startCountdown(data.expireAt);
+      if (order?.expireAt) startCountdown(order.expireAt);
 
       // Poll trạng thái
       pollRef.current = setInterval(async () => {
         try {
-          const rs = await client.get(`/payments/${data.id}`);
-          const p = rs?.data || {};
+          const rs = await client.get(`/payments/${order.id}`);
+          const p = normalizeOrder(rs?.data || {});
+          // cập nhật trạng thái
           setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
-
           if (p.status === "PAID") {
             setPaid(true);
             clearInterval(pollRef.current);
@@ -122,16 +141,14 @@ export default function AppointmentStep() {
               const rs2 = await client.get(`/appointments/${idLichHen}`);
               setAppt(rs2?.data);
             } catch {}
-          } else {
-            // kiểm tra hết hạn
-            if (data?.expireAt) {
-              const nowMs = Date.now();
-              const expMs = toMs(data.expireAt);
-              if (expMs && nowMs >= expMs) {
-                setExpired(true);
-                clearInterval(pollRef.current);
-                clearInterval(countdownRef.current);
-              }
+          } else if (order?.expireAt) {
+            // kiểm tra hết hạn nếu có expireAt
+            const nowMs = Date.now();
+            const expMs = toMs(order.expireAt);
+            if (expMs && nowMs >= expMs) {
+              setExpired(true);
+              clearInterval(pollRef.current);
+              clearInterval(countdownRef.current);
             }
           }
         } catch {
@@ -146,7 +163,6 @@ export default function AppointmentStep() {
   }
 
   function toMs(dtStr) {
-    // server trả "YYYY-MM-DD HH:mm:ss" -> chuẩn hóa
     if (!dtStr) return null;
     const iso = dtStr.includes("T") ? dtStr : dtStr.replace(" ", "T");
     const t = new Date(iso).getTime();
