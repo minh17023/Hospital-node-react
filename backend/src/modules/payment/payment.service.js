@@ -1,98 +1,124 @@
-import { PaymentModel } from "./payment.model.js";
-import { AppointmentModel } from "../appointment/appointment.model.js";
+import crypto from "crypto";
+import { pool } from "../../config/db.js";
 import { AppError } from "../../core/http/error.js";
-import { env } from "../../config/env.js";
+import { PaymentModel } from "./payment.model.js";
 
-function randomCode(n = 6) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i = 0; i < n; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return s;
+/** Gen mã đối soát (khớp với webhook.referenceCode) */
+function genReference() {
+  return "FT" + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
-function buildVietQrUrl({ bank, account, name, amount, addInfo, style }) {
-  const safeInfo = encodeURIComponent(addInfo || "");
-  return (
-    `${env.pay.qrBase}/${bank}-${account}-${encodeURIComponent(name)}.jpg` +
-    `?amount=${amount}&addInfo=${safeInfo}&accountName=${encodeURIComponent(name)}` +
-    (style ? `&style=${style}` : "")
-  );
+/** Tạo link ảnh QR Sepay — chỉnh path theo cấu hình Sepay của bạn */
+function buildSepayQR({ amount, addInfo }) {
+  const base  = process.env.SEPAY_QR_BASE;
+  const bank  = process.env.SEPAY_QR_BANK;
+  const acc   = process.env.SEPAY_QR_ACCOUNT;
+  const name  = encodeURIComponent(process.env.SEPAY_QR_ACCOUNT_NAME || "");
+  const style = process.env.SEPAY_QR_STYLE || "compact";
+
+  const qs = new URLSearchParams();
+  if (amount) qs.set("amount", String(amount));
+  if (addInfo) qs.set("addInfo", addInfo);
+  if (name) qs.set("accountName", name);
+  if (style) qs.set("style", style);
+
+  // ví dụ: {base}/{BANK}-{ACCOUNT}-qr_only.png?... (đổi cho đúng nhà cung cấp của bạn)
+  return `${base}/${bank}-${acc}-qr_only.png?${qs.toString()}`;
+}
+
+function checkWebhookAuth(req) {
+  const key =
+    req.query.key ||
+    req.headers["x-webhook-key"] ||
+    (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  return key && (key === process.env.SEPAY_WEBHOOK_TOKEN || key === process.env.SEPAY_WEBHOOK_KEY);
 }
 
 export const PaymentService = {
-  /** Tạo/khôi phục đơn thanh toán cho 1 lịch hẹn */
-  async createForAppointment(idLichHen) {
-    const appt = await AppointmentModel.getById(idLichHen);
-    if (!appt) throw new AppError(404, "Không tìm thấy lịch hẹn");
+  /** Tạo đơn thanh toán từ idLichHen */
+  async create({ idLichHen }) {
+    if (!idLichHen) throw new AppError(400, "Thiếu idLichHen");
 
-    // Lấy đúng số tiền từ lịch hẹn (ưu tiên phiDaGiam)
-    const amount = Number(appt.phiDaGiam ?? appt.phidagiam ?? appt.phiKhamGoc ?? 0);
-    if (!amount || amount <= 0) throw new AppError(400, "Không thể xác định số tiền thanh toán");
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
 
-    // Nếu đã có PENDING đúng số tiền => tái dùng
-    const existed = await PaymentModel.findPendingByAppointment(idLichHen);
-    if (existed && Number(existed.amount) === amount) return existed;
-    if (existed) await PaymentModel.cancel(existed.id);
+      const appt = await PaymentModel.getAppointmentInfo(idLichHen, conn);
+      if (!appt) throw new AppError(404, "Lịch hẹn không tồn tại");
 
-    const code = `LH${idLichHen}-${randomCode(5)}`;
-    const qrUrl = buildVietQrUrl({
-      bank: env.pay.bank,
-      account: env.pay.account,
-      name: env.pay.accountName,
-      amount,
-      addInfo: code,
-      style: env.pay.style, // dùng env.pay.style
-    });
+      const soTien = Number(appt.phiDaGiam || 0);
+      if (!soTien) throw new AppError(400, "phiDaGiam không hợp lệ");
 
-    // TTL (nếu có)
-    const expireAt = env.pay.ttlMinutes
-      ? new Date(Date.now() + env.pay.ttlMinutes * 60 * 1000)
-      : null;
+      const referenceCode = genReference();
+      // Ghi chú/addInfo chứa cả CCCD để tra soát
+      const addInfo = `${referenceCode} LH${idLichHen} CCCD:${appt.soCCCD || "N/A"}`;
+      const qrUrl = buildSepayQR({ amount: soTien, addInfo });
 
-    const id = await PaymentModel.create({
-      appointmentId: idLichHen,
-      amount,
-      transferContent: code,
-      qrUrl,
-      expireAt,
-      meta: {
-        phiKhamGoc: appt.phiKhamGoc ?? null,
-        phiDaGiam: appt.phiDaGiam ?? null,
-      },
-    });
+      await PaymentModel.upsertByAppointment({
+        idLichHen, referenceCode, soTien, qrUrl,
+        ghiChu: `create:${addInfo}`
+      }, conn);
 
-    return await PaymentModel.getById(id);
-  },
+      const order = await PaymentModel.findByReference(referenceCode, conn);
+      const full  = await PaymentModel.findById(order?.idDonHang, conn);
 
-  async getOrder(id) {
-    const o = await PaymentModel.getById(id);
-    if (!o) throw new AppError(404, "Không tìm thấy đơn");
-    return o;
-  },
-
-  async listByAppointment(idLichHen) {
-    return await PaymentModel.listByAppointment(idLichHen);
-  },
-
-  /** Áp webhook từ Sepay */
-  async applyWebhook({ amount, transferContent, when, providerRef }) {
-    // Tìm theo code "LH{id}-xxxxx" trong nội dung chuyển khoản
-    const match = /LH(\d+)/i.exec(transferContent || "");
-    if (!match) return { ok: false, reason: "no_code" };
-
-    const order = await PaymentModel.findByTransferContentLike(match[0]);
-    if (!order) return { ok: false, reason: "not_found" };
-
-    // kiểm số tiền (cho phép lệch nhỏ)
-    if (Math.abs(Number(amount) - Number(order.amount)) > 500) {
-      return { ok: false, reason: "amount_mismatch" };
+      await conn.commit();
+      return full;
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
     }
+  },
 
-    await PaymentModel.markPaid(order.id, providerRef || match[0]);
+  getById(id) {
+    return PaymentModel.findById(Number(id));
+  },
 
-    // cập nhật lịch hẹn: 2 = đã thanh toán
-    await AppointmentModel.updateStatus(order.appointmentId, 2);
+  listByAppointment(idLichHen) {
+    return PaymentModel.listByAppointment(Number(idLichHen));
+  },
 
-    return { ok: true, orderId: order.id };
+  /** Xử lý webhook Sepay */
+  async handleSepayWebhook(req) {
+    const authorized = checkWebhookAuth(req);
+    await PaymentModel.logWebhook({ httpStatus: authorized ? 200 : 401, body: req.body });
+
+    if (!authorized) throw new AppError(401, "Unauthorized");
+
+    const type = String(req.body?.transferType || "").toLowerCase();
+    if (type !== "in") return { success: true };
+
+    const referenceCode = (req.body?.referenceCode || "").trim();
+    const amount = Number(req.body?.transferAmount || 0);
+    if (!referenceCode || !amount) return { success: true };
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const order = await PaymentModel.findByReference(referenceCode, conn);
+      if (!order) { await conn.commit(); return { success: true }; }
+
+      if (order.trangThai === 1) { await conn.commit(); return { success: true, duplicated: true }; }
+
+      // khớp số tiền tuyệt đối
+      if (Math.abs(order.soTien - amount) !== 0) {
+        await conn.commit();
+        return { success: true, mismatch: true };
+      }
+
+      await PaymentModel.markPaid(order.idDonHang, conn);
+      await PaymentModel.updateAppointmentStatusPaid(order.idLichHen, conn);
+
+      await conn.commit();
+      return { success: true };
+    } catch (e) {
+      await conn.rollback();
+      return { success: true, error: "internal" };
+    } finally {
+      conn.release();
+    }
   },
 };

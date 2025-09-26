@@ -1,72 +1,112 @@
 import { pool } from "../../config/db.js";
 
+const T_ORDER = "DonHang";
+const T_EVENT = "WebhookSepayEvent";
+
 export const PaymentModel = {
-  async findPendingByAppointment(idLichHen) {
-    const [rows] = await pool.query(
-      `SELECT * FROM PaymentOrder
-       WHERE appointmentId=? AND status='PENDING'
-       ORDER BY id DESC LIMIT 1`,
+  // Lấy info lịch hẹn (phiDaGiam) + bệnh nhân (CCCD) để tạo đơn
+  async getAppointmentInfo(idLichHen, conn = pool) {
+    const [rows] = await conn.query(
+      `SELECT l.*, b.soCCCD
+         FROM LichHen l
+         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
+        WHERE l.idLichHen=? LIMIT 1`,
       [idLichHen]
+    );
+    return rows[0] || null;
+  },
+
+  // Tạo/ghi đè đơn theo lịch hẹn (idempotent theo idLichHen)
+  async upsertByAppointment({ idLichHen, referenceCode, soTien, qrUrl, ghiChu }, conn = pool) {
+    const [rs] = await conn.query(
+      `INSERT INTO ${T_ORDER}
+         (idLichHen, referenceCode, soTien, qrUrl, gateway, trangThai, ghiChu)
+       VALUES (?, ?, ?, ?, 'SEPAY', 0, ?)
+       ON DUPLICATE KEY UPDATE
+         referenceCode=VALUES(referenceCode),
+         soTien=VALUES(soTien),
+         qrUrl=VALUES(qrUrl),
+         trangThai=0,
+         ghiChu=VALUES(ghiChu),
+         createdAt=CURRENT_TIMESTAMP`,
+      [idLichHen, referenceCode, soTien, qrUrl, ghiChu]
+    );
+    return rs.insertId || null;
+  },
+
+  async findById(idDonHang) {
+    const [rows] = await pool.query(
+      `SELECT d.*, l.*, b.soCCCD
+         FROM ${T_ORDER} d
+         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
+        WHERE d.idDonHang=? LIMIT 1`,
+      [idDonHang]
     );
     return rows[0] || null;
   },
 
   async listByAppointment(idLichHen) {
     const [rows] = await pool.query(
-      `SELECT * FROM PaymentOrder
-       WHERE appointmentId=?
-       ORDER BY id DESC`,
+      `SELECT d.*, l.*, b.soCCCD
+         FROM ${T_ORDER} d
+         JOIN LichHen l ON l.idLichHen = d.idLichHen
+         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
+        WHERE d.idLichHen=?
+        ORDER BY d.createdAt DESC`,
       [idLichHen]
     );
     return rows;
   },
 
-  async create(order) {
-    const {
-      appointmentId, amount, currency = "VND",
-      transferContent, qrUrl, status = "PENDING",
-      expireAt = null, meta = null
-    } = order;
-
-    const [rs] = await pool.query(
-      `INSERT INTO PaymentOrder
-       (appointmentId, amount, currency, transferContent, qrUrl, status, expireAt, meta, createdAt)
-       VALUES (?,?,?,?,?,?,?,?, NOW())`,
-      [appointmentId, amount, currency, transferContent, qrUrl, status, expireAt, JSON.stringify(meta)]
-    );
-    return rs.insertId;
-  },
-
-  async getById(id) {
-    const [rows] = await pool.query(
-      `SELECT po.*,
-              lh.idBenhNhan, lh.idBacSi, lh.ngayHen, lh.gioHen, lh.trangThai AS trangThaiLichHen
-         FROM PaymentOrder po
-         LEFT JOIN LichHen lh ON lh.idLichHen = po.appointmentId
-        WHERE po.id=? LIMIT 1`,
-      [id]
+  async findByReference(referenceCode, conn = pool) {
+    const [rows] = await conn.query(
+      `SELECT idDonHang, idLichHen, soTien, trangThai
+         FROM ${T_ORDER}
+        WHERE referenceCode=? LIMIT 1`,
+      [referenceCode]
     );
     return rows[0] || null;
   },
 
-  async markPaid(id, ref) {
-    await pool.query(
-      `UPDATE PaymentOrder SET status='PAID', paidAt=NOW(), providerRef=? WHERE id=?`,
-      [ref || null, id]
+  async markPaid(idDonHang, conn = pool) {
+    const [rs] = await conn.query(
+      `UPDATE ${T_ORDER}
+          SET trangThai=1, paidAt=NOW(), ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
+        WHERE idDonHang=?`,
+      [idDonHang]
+    );
+    return rs.affectedRows || 0;
+  },
+
+  async updateAppointmentStatusPaid(idLichHen, conn = pool) {
+    await conn.query(
+      `UPDATE LichHen SET trangThai=2 WHERE idLichHen=? AND (trangThai IS NULL OR trangThai IN (0,1))`,
+      [idLichHen]
     );
   },
 
-  async cancel(id) {
-    await pool.query(`UPDATE PaymentOrder SET status='CANCELLED' WHERE id=?`, [id]);
-  },
-
-  async findByTransferContentLike(code) {
-    const [rows] = await pool.query(
-      `SELECT * FROM PaymentOrder
-       WHERE transferContent LIKE ? AND status='PENDING'
-       ORDER BY id DESC LIMIT 1`,
-      [`%${code}%`]
-    );
-    return rows[0] || null;
+  async logWebhook({ httpStatus, body }, conn = pool) {
+    const b = body || {};
+    try {
+      await conn.query(
+        `INSERT INTO ${T_EVENT}
+         (httpStatus, rawJson, gateway, transactionDate, accountNumber, subAccount, transferType,
+          description, transferAmount, referenceCode, accumulated, content)
+         VALUES (?, CAST(? AS JSON), 'SEPAY', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          httpStatus, JSON.stringify(b),
+          b.transactionDate || null,
+          b.accountNumber || null,
+          b.subAccount || null,
+          b.transferType || null,
+          b.description || null,
+          b.transferAmount || null,
+          b.referenceCode || null,
+          b.accumulated || null,
+          b.content || null,
+        ]
+      );
+    } catch { /* ignore log error */ }
   },
 };

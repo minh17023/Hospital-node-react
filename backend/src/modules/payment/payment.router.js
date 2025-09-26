@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { PaymentController } from "./payment.controller.js";
 import { authGuard } from "../../core/middlewares/auth.guard.js";
-import { patientSelfOrStaff } from "../../core/middlewares/ownership.js";
 
 const r = Router();
 
@@ -11,22 +10,6 @@ r.post("/payments", authGuard(true), PaymentController.create);
 /** Lấy đơn + list theo lịch hẹn */
 r.get("/payments/:id", authGuard(true), PaymentController.get);
 r.get("/appointments/:id/payments", authGuard(true), PaymentController.listByAppointment);
-
-/** Combo: Đặt lịch + khởi tạo thanh toán ngay */
-r.post(
-  "/appointments/booking/:idLichLamViec/pay",
-  authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
-  PaymentController.bookOnlineAndPay
-);
-
-/** Combo: Walk-in + khởi tạo thanh toán ngay */
-r.post(
-  "/appointments/walkin/pay",
-  authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
-  PaymentController.walkinAndPay
-);
 
 /** Webhook Sepay (public) */
 r.post("/payments/webhooks/sepay", PaymentController.sepayWebhook);
