@@ -4,12 +4,26 @@ import { AppError } from "../../core/http/error.js";
 import { env } from "../../config/env.js";
 import { PaymentModel } from "./payment.model.js";
 
+/* ===== Helpers ===== */
+const FT_RE = /\bFT[A-Z0-9]{6,}\b/g;
+
 function genReference() {
   return "FT" + Date.now().toString(36).toUpperCase()
        + crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
-/** QR Sepay: https://qr.sepay.vn/img?acc=...&bank=...&amount=...&des=... */
+function refsFromContent(body) {
+  const s = String(body?.content || body?.description || "");
+  const list = s.match(FT_RE) || [];
+  return [...new Set(list.map(x => x.toUpperCase()))];
+}
+
+function checkWebhookAuth(req) {
+  const token = String(req.query?.key || "");
+  return token && token === env.pay.sepayWebhookToken;
+}
+
+/** QR sepay: https://qr.sepay.vn/img?acc=...&bank=...&amount=...&des=... */
 function buildSepayQR({ amount, addInfo }) {
   const base = env.pay.sepayQrBase || "https://qr.sepay.vn/img";
   const acc  = env.pay.sepayQrAccount;
@@ -30,22 +44,6 @@ function buildSepayQR({ amount, addInfo }) {
   return `${base}?${qs.toString()}`;
 }
 
-/** Xác thực webhook: chỉ dùng query ?key=... */
-function checkWebhookAuth(req) {
-  const token = (req.query?.key || "").toString();
-  return token && token === env.pay.sepayWebhookToken;
-}
-
-/** Khi Sepay không set referenceCode, rút mã FT... từ content/description */
-function extractRef(body) {
-  const rc = (body?.referenceCode || "").trim();
-  if (rc) return rc;
-  const txt = String(body?.content || body?.description || "");
-  const m = txt.match(/\bFT[A-Z0-9]{6,}\b/);
-  return m ? m[0] : "";
-}
-
-/** Chuẩn hóa object trả FE */
 const toView = (row) => ({
   id: row.idDonHang,
   status: Number(row.dhTrangThai) === 1 ? "PAID" : "PENDING",
@@ -58,6 +56,7 @@ const toView = (row) => ({
   expireAt: row.expireAt || null,
 });
 
+/* ===== Service ===== */
 export const PaymentService = {
   async create({ idLichHen }) {
     if (!idLichHen) throw new AppError(400, "Thiếu idLichHen");
@@ -72,10 +71,14 @@ export const PaymentService = {
       const soTien = Number(appt.phiDaGiam || 0);
       if (!soTien) throw new AppError(400, "phiDaGiam không hợp lệ");
 
+      // 1) Mã của bạn
       const referenceCode = genReference();
       const addInfo = `${referenceCode} LH${idLichHen} CCCD:${appt.soCCCD || "N/A"}`;
+
+      // 2) Link QR Sepay
       const qrUrl = buildSepayQR({ amount: soTien, addInfo });
 
+      // 3) Lưu đơn; append ghi chú
       await PaymentModel.upsertByAppointment({
         idLichHen, referenceCode, soTien, qrUrl, ghiChu: `create:${addInfo}`
       }, conn);
@@ -103,11 +106,20 @@ export const PaymentService = {
     return rows.map(toView);
   },
 
-  /** Webhook: ghi event + cập nhật đơn */
+  /** Webhook Sepay */
   async handleSepayWebhook(req) {
     const authorized = checkWebhookAuth(req);
-    // luôn log event (kể cả 401)
-    await PaymentModel.logWebhook({ httpStatus: authorized ? 200 : 401, body: req.body });
+
+    // Bóc mã của bạn từ content trước
+    const listFromContent = refsFromContent(req.body);
+    const overrideRef = listFromContent[0] || null;
+
+    // luôn log event; ghi referenceCode = mã đã bóc nếu có
+    await PaymentModel.logWebhook({
+      httpStatus: authorized ? 200 : 401,
+      body: req.body,
+      overrideRef,
+    });
 
     if (!authorized) throw new AppError(401, "Unauthorized");
 
@@ -115,21 +127,32 @@ export const PaymentService = {
       return { success: true };
     }
 
-    const referenceCode = extractRef(req.body);
     const amount = Number(req.body?.transferAmount || 0);
-    if (!referenceCode || !amount) return { success: true };
+    if (!amount) return { success: true };
+
+    // danh sách mã ứng viên: mã của bạn trong content (ưu tiên), rồi tới referenceCode của bank
+    const candidates = [...listFromContent];
+    const bankRef = (req.body?.referenceCode || "").trim();
+    if (bankRef) candidates.push(bankRef.toUpperCase());
+
+    if (candidates.length === 0) return { success: true, not_found: true };
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const order = await PaymentModel.findByReference(referenceCode, conn);
+      let order = null;
+      for (const ref of candidates) {
+        order = await PaymentModel.findByReference(ref, conn);
+        if (order) break;
+      }
+
       if (!order) { await conn.commit(); return { success: true, not_found: true }; }
 
       if (Number(order.trangThai) === 1) { await conn.commit(); return { success: true, duplicated: true }; }
 
       if (Math.abs(Number(order.soTien) - amount) !== 0) {
-        await conn.commit(); 
+        await conn.commit();
         return { success: true, mismatch: true };
       }
 

@@ -9,7 +9,8 @@ export const PaymentModel = {
       `SELECT l.*, b.soCCCD
          FROM LichHen l
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE l.idLichHen=? LIMIT 1`, [idLichHen]
+        WHERE l.idLichHen=? LIMIT 1`,
+      [idLichHen]
     );
     return rows[0] || null;
   },
@@ -17,15 +18,15 @@ export const PaymentModel = {
   async upsertByAppointment({ idLichHen, referenceCode, soTien, qrUrl, ghiChu }, conn = pool) {
     const [rs] = await conn.query(
       `INSERT INTO ${T_ORDER}
-         (idLichHen, referenceCode, soTien, qrUrl, gateway, trangThai, ghiChu)
+          (idLichHen, referenceCode, soTien, qrUrl, gateway, trangThai, ghiChu)
        VALUES (?, ?, ?, ?, 'SEPAY', 0, ?)
        ON DUPLICATE KEY UPDATE
-         referenceCode=VALUES(referenceCode),
-         soTien=VALUES(soTien),
-         qrUrl=VALUES(qrUrl),
-         trangThai=0,
-         ghiChu=VALUES(ghiChu),
-         createdAt=CURRENT_TIMESTAMP`,
+          referenceCode=VALUES(referenceCode),
+          soTien=VALUES(soTien),
+          qrUrl=VALUES(qrUrl),
+          trangThai=0,
+          ghiChu=VALUES(ghiChu),
+          createdAt=CURRENT_TIMESTAMP`,
       [idLichHen, referenceCode, soTien, qrUrl, ghiChu]
     );
     return rs.insertId || null;
@@ -39,7 +40,8 @@ export const PaymentModel = {
          FROM ${T_ORDER} d
          JOIN LichHen l  ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE d.idDonHang=? LIMIT 1`, [idDonHang]
+        WHERE d.idDonHang=? LIMIT 1`,
+      [idDonHang]
     );
     return rows[0] || null;
   },
@@ -53,16 +55,18 @@ export const PaymentModel = {
          JOIN LichHen l  ON l.idLichHen = d.idLichHen
          LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
         WHERE d.idLichHen=?
-        ORDER BY d.createdAt DESC, d.idDonHang DESC`, [idLichHen]
+        ORDER BY d.createdAt DESC, d.idDonHang DESC`,
+      [idLichHen]
     );
     return rows;
   },
 
+  // so sánh không phân biệt hoa/thường
   async findByReference(referenceCode, conn = pool) {
     const [rows] = await conn.query(
       `SELECT idDonHang, idLichHen, soTien, trangThai
          FROM ${T_ORDER}
-        WHERE referenceCode=? LIMIT 1`,
+        WHERE UPPER(referenceCode)=UPPER(?) LIMIT 1`,
       [referenceCode]
     );
     return rows[0] || null;
@@ -87,7 +91,8 @@ export const PaymentModel = {
   async markPaid(idDonHang, conn = pool) {
     const [rs] = await conn.query(
       `UPDATE ${T_ORDER}
-          SET trangThai=1, paidAt=NOW(),
+          SET trangThai=1,
+              paidAt=NOW(),
               ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
         WHERE idDonHang=?`,
       [idDonHang]
@@ -103,14 +108,15 @@ export const PaymentModel = {
     );
   },
 
-  // luôn log webhook (kể cả 401)
-  async logWebhook({ httpStatus, body }, conn = pool) {
+  // Log webhook; cho phép ghi đè referenceCode bằng mã bóc từ content
+  async logWebhook({ httpStatus, body, overrideRef = null }, conn = pool) {
     const b = body || {};
+    const refToSave = overrideRef || b.referenceCode || null;
     try {
       await conn.query(
         `INSERT INTO ${T_EVENT}
-         (httpStatus, rawJson, gateway, transactionDate, accountNumber, subAccount, transferType,
-          description, transferAmount, referenceCode, accumulated, content)
+         (httpStatus, rawJson, gateway, transactionDate, accountNumber, subAccount,
+          transferType, description, transferAmount, referenceCode, accumulated, content)
          VALUES (?, CAST(? AS JSON), 'SEPAY', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           httpStatus, JSON.stringify(b),
@@ -120,7 +126,7 @@ export const PaymentModel = {
           b.transferType || null,
           b.description || null,
           b.transferAmount || null,
-          b.referenceCode || null,
+          refToSave,
           b.accumulated || null,
           b.content || null,
         ]
