@@ -1,0 +1,180 @@
+:root {
+  --bg: #f6fbf7;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+
+  --pri: #0ea5e9;    /* primary button */
+  --pri-contrast: #ffffff;
+
+  --ok: #16a34a;
+  --warn: #f59e0b;
+  --proc: #0ea5e9;
+  --done: #059669;
+  --cancel: #9ca3af;
+
+  --shadow: 0 6px 18px rgba(0,0,0,0.05);
+  --radius: 16px;
+}
+
+.apts {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  color: var(--text);
+}
+
+.apts-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.apts-title .ico { filter: grayscale(0); }
+
+.apts-header {
+  background: var(--bg);
+  border: 1px solid #d1fae5;
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.filters .fcol { display: flex; flex-direction: column; }
+.filters .fcol.grow { grid-column: span 2; }
+.filters label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.filters input[type="date"],
+.filters input[type="text"],
+.filters input:not([type]),
+.filters select {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  outline: none;
+  transition: box-shadow .15s, border-color .15s;
+}
+.filters input:focus,
+.filters select:focus {
+  border-color: var(--pri);
+  box-shadow: 0 0 0 3px rgba(14,165,233,.15);
+}
+.filters .btns { display: flex; gap: 8px; }
+
+.btn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  transition: transform .06s ease, background .15s;
+}
+.btn:hover { background: #f9fafb; }
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--pri);
+  color: var(--pri-contrast);
+  border: 1px solid var(--pri);
+}
+.btn-primary:hover { filter: brightness(0.97); }
+.btn.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+.btn.danger:hover { background: #ffe4e6; }
+
+.alert {
+  padding: 12px 14px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+}
+.alert.info  { background: #eff6ff; border-color: #dbeafe; }
+.alert.error { background: #fef2f2; border-color: #fee2e2; color: #991b1b; }
+.alert.empty { background: #f8fafc; }
+
+/* ---------- CARDS GRID (2 columns) ---------- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2 cột mặc định */
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Thẻ cao bằng nhau + layout đẹp */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+
+  display: flex;
+  flex-direction: column;  /* để đẩy actions xuống đáy */
+  height: 100%;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.card-head .svc .lbl { color: var(--muted); margin-right: 6px; }
+
+.status {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.status.st-created    { background: #e0f2fe; color: #0369a1; }
+.status.st-confirmed  { background: #dcfce7; color: #166534; }
+.status.st-processing { background: #e0f2fe; color: #075985; }
+.status.st-done       { background: #dcfce7; color: #065f46; }
+.status.st-cancel     { background: #f3f4f6; color: #6b7280; }
+
+/* Lưới thông tin bên trong thẻ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 18px;
+}
+.row { display: flex; gap: 8px; }
+.lbl { color: var(--muted); width: 120px; }
+.val { font-weight: 600; }
+.val.hi { color: var(--ok); }
+
+/* Footer của thẻ: luôn nằm cuối */
+.card-actions {
+  margin-top: auto;  /* đẩy xuống đáy thẻ */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-actions .muted { color: var(--muted); }
+.card-actions .code {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 980px) {
+  .cards { grid-template-columns: 1fr; } /* <980px: 1 cột */
+}
+
+@media (max-width: 768px) {
+  .filters { grid-template-columns: 1fr 1fr; }
+  .filters .fcol.grow { grid-column: span 2; }
+  .grid { grid-template-columns: 1fr; }
+}

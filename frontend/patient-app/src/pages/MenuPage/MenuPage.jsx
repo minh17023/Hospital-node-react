@@ -149,8 +149,6 @@ export default function MenuPage() {
           <div className="fs-3 text-muted">›</div>
         </button>
       </div>
-
-      <div className="text-center text-muted mt-4">Phiên bản: v1.0.0</div>
     </div>
   );
 }

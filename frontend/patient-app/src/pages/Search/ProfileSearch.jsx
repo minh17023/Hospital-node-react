@@ -1,22 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import client from "../../api/client";
+import s from "./ProfileSearch.module.css";
 
+/* ===== helpers ===== */
 const isIsoDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
+const pad = (n) => String(n).padStart(2, "0");
+const cx = (...names) => names.filter(Boolean).map((n) => s[n] || n).join(" ");
 
 function fmtMoney(n) {
-  return Number(n || 0).toLocaleString("vi-VN") + " đ";
+  const v = Number(n || 0);
+  return v.toLocaleString("vi-VN") + " đ";
 }
 function fmtDate(d) {
   if (!isIsoDate(d)) return "--/--/----";
   const [y, m, dd] = d.split("-");
-  return `${dd}/${m}/${y}`;
+  return `${pad(dd)}-${pad(m)}-${y}`;
 }
-function cls(...a) {
-  return a.filter(Boolean).join(" ");
+function statusText(sv) {
+  const n = Number(sv);
+  if (n === -1) return { text: "Đã hủy", cls: "st-cancel" };
+  if (n === 5) return { text: "Hoàn tất", cls: "st-done" };
+  if (n === 3) return { text: "Đang khám", cls: "st-processing" };
+  if (n === 2) return { text: "Đã xác nhận", cls: "st-confirmed" };
+  return { text: "Đã đặt", cls: "st-created" }; // 1
 }
 
-export default function ResultsPage() {
-  // === lấy thông tin BN để gửi lên idBenhNhan (bắt buộc cho patientSelfOrStaff) ===
+export default function ProfileSearch() {
+  /* ==== patient info ==== */
   const patient = useMemo(() => {
     try {
       const raw =
@@ -29,264 +39,236 @@ export default function ResultsPage() {
   }, []);
   const idBenhNhan = patient?.idBenhNhan;
 
-  // bộ lọc
-  const [date, setDate] = useState(""); // để trống = tất cả ngày
-  const [unpaidOnly, setUnpaidOnly] = useState(false);
+  /* ==== filters ==== */
+  const [from, setFrom] = useState(""); // YYYY-MM-DD
+  const [to, setTo] = useState("");
+  const [status, setStatus] = useState("ALL"); // ALL|ACTIVE|CANCELED|number
+  const [keyword, setKeyword] = useState("");
 
-  // dữ liệu
+  /* ==== data states ==== */
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState([]); // các lịch hẹn + payment
+  const [raw, setRaw] = useState([]);
   const [error, setError] = useState("");
 
-  // quản lý poll đơn theo idDonHang
-  const pollTimers = useRef({}); // { orderId: intervalId }
-  const loadAbort = useRef(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
     load();
     return () => {
-      // dọn poll + huỷ request đang chạy
-      Object.values(pollTimers.current).forEach(clearInterval);
-      pollTimers.current = {};
-      if (loadAbort.current) {
-        loadAbort.current.abort();
-        loadAbort.current = null;
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, unpaidOnly, idBenhNhan]);
+  }, [idBenhNhan]);
 
   async function load() {
     if (!idBenhNhan) {
-      setError("Thiếu thông tin bệnh nhân (idBenhNhan). Vui lòng đăng nhập lại.");
-      setItems([]);
+      setError("Thiếu thông tin bệnh nhân. Vui lòng đăng nhập lại.");
+      setRaw([]);
       setLoading(false);
       return;
     }
-    // huỷ request cũ nếu có
-    if (loadAbort.current) loadAbort.current.abort();
-    loadAbort.current = new AbortController();
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
 
     setLoading(true);
     setError("");
     try {
       const q = new URLSearchParams();
-      q.set("idBenhNhan", String(idBenhNhan)); // <<< BẮT BUỘC
-      if (isIsoDate(date)) q.set("date", date);
-      if (unpaidOnly) q.set("unpaidOnly", "true");
+      q.set("idBenhNhan", String(idBenhNhan)); // cần cho patientSelfOrStaff
+      // nếu BE đã hỗ trợ các filter này thì sẽ áp dụng; nếu chưa, FE vẫn lọc client-side
+      if (isIsoDate(from)) q.set("from", from);
+      if (isIsoDate(to)) q.set("to", to);
+      if (status && status !== "ALL") q.set("status", status);
 
-      const { data } = await client.get(
-        `/appointments/my-with-payments?${q.toString()}`,
-        { signal: loadAbort.current.signal }
-      );
-      setItems(data?.items || []);
+      const { data } = await client.get(`/appointments/my?${q.toString()}`, {
+        signal: abortRef.current.signal,
+      });
+      setRaw(Array.isArray(data?.items) ? data.items : []);
     } catch (e) {
       if (e.name === "CanceledError" || e.name === "AbortError") return;
-      setItems([]);
-      setError(
-        e?.response?.data?.message || e?.message || "Không tải được dữ liệu"
-      );
+      setRaw([]);
+      setError(e?.response?.data?.message || e?.message || "Không tải được dữ liệu.");
     } finally {
       setLoading(false);
     }
   }
 
-  // tạo/tái sử dụng đơn & bắt đầu poll
-  async function createOrShowPayment(appt) {
-    try {
-      // BE sẽ tạo đơn mới hoặc trả lại đơn PENDING hiện có
-      const { data } = await client.post("/payments", {
-        idLichHen: appt.idLichHen,
-      });
+  /* ==== client-side filter (an toàn nếu BE chưa hỗ trợ) ==== */
+  const items = useMemo(() => {
+    let arr = [...raw];
 
-      // chèn/ghi đè payment vào item tương ứng
-      setItems((prev) =>
-        prev.map((it) =>
-          it.idLichHen === appt.idLichHen
-            ? {
-                ...it,
-                payment: {
-                  id: data.id,
-                  status: data.status,
-                  amount: data.amount,
-                  qrUrl: data.qrUrl,
-                  referenceCode:
-                    data.referenceCode || it.payment?.referenceCode || "",
-                  createdAt: data.createdAt || null,
-                },
-              }
-            : it
+    if (isIsoDate(from)) arr = arr.filter((x) => String(x.ngayHen) >= from);
+    if (isIsoDate(to)) arr = arr.filter((x) => String(x.ngayHen) <= to);
+
+    const sTxt = String(status).toUpperCase();
+    if (sTxt === "ACTIVE") arr = arr.filter((x) => Number(x.trangThai) !== -1);
+    else if (sTxt === "CANCELED") arr = arr.filter((x) => Number(x.trangThai) === -1);
+    else if (/^-?\d+$/.test(sTxt)) arr = arr.filter((x) => Number(x.trangThai) === Number(sTxt));
+
+    if (keyword.trim()) {
+      const k = keyword.trim().toLowerCase();
+      arr = arr.filter(
+        (x) =>
+          (x.tenBacSi || "").toLowerCase().includes(k) ||
+          (x.tenChuyenKhoa || "").toLowerCase().includes(k) ||
+          (x.tenPhongKham || "").toLowerCase().includes(k)
+      );
+    }
+
+    arr.sort((a, b) => {
+      const ka = `${a.ngayHen ?? ""} ${a.gioHen ?? ""}`;
+      const kb = `${b.ngayHen ?? ""} ${b.gioHen ?? ""}`;
+      return ka < kb ? 1 : ka > kb ? -1 : 0;
+    });
+    return arr;
+  }, [raw, from, to, status, keyword]);
+
+  /* ==== actions ==== */
+  async function cancelAppt(appt) {
+    if (Number(appt.trangThai) === -1) return;
+    const ok = window.confirm(
+      `Hủy lịch này?\nBác sĩ: ${appt.tenBacSi}\nThời gian: ${(appt.gioHen || "").slice(
+        0,
+        5
+      )} ${fmtDate(appt.ngayHen)}`
+    );
+    if (!ok) return;
+
+    try {
+      await client.put(`/appointments/${appt.idLichHen}/cancel`, { idBenhNhan });
+      // update lạc quan
+      setRaw((prev) =>
+        prev.map((x) =>
+          x.idLichHen === appt.idLichHen
+            ? { ...x, trangThai: -1, lyDoKham: `${x.lyDoKham || ""} | cancel by patient` }
+            : x
         )
       );
-
-      // poll đến khi PAID
-      startPollingOrder(appt.idLichHen, data.id);
     } catch (e) {
-      alert(
-        e?.response?.data?.message ||
-          e?.message ||
-          "Không thể tạo đơn thanh toán"
-      );
+      alert(e?.response?.data?.message || e?.message || "Hủy lịch thất bại");
     }
   }
 
-  function startPollingOrder(idLichHen, orderId) {
-    // clear nếu đang chạy
-    if (pollTimers.current[orderId]) {
-      clearInterval(pollTimers.current[orderId]);
-    }
-    pollTimers.current[orderId] = setInterval(async () => {
-      try {
-        const rs = await client.get(`/payments/${orderId}`);
-        const p = rs?.data || {};
-        if (p.status === "PAID") {
-          clearInterval(pollTimers.current[orderId]);
-          delete pollTimers.current[orderId];
-
-          // cập nhật nhanh trạng thái
-          setItems((prev) =>
-            prev.map((it) =>
-              it.idLichHen === idLichHen
-                ? { ...it, payment: { ...(it.payment || {}), status: "PAID" } }
-                : it
-            )
-          );
-
-          // đồng bộ lại toàn bộ list
-          load();
-        }
-      } catch {
-        /* bỏ qua 1 tick lỗi */
-      }
-    }, 3000);
-  }
-
+  /* ==== UI ==== */
   return (
-    <div className="container py-4">
-      <h2 className="mb-3">Tra Cứu Kết Quả / Lịch Hẹn & Thanh Toán</h2>
+    <div className={s.apts}>
+      <div className={s["apts-header"]}>
+        <div className={s["apts-title"]}>
+          <span className={s.ico}>🩺</span> Danh Sách Lịch Hẹn
+        </div>
 
-      {/* Bộ lọc */}
-      <div className="card p-3 mb-3">
-        <div className="row g-3 align-items-end">
-          <div className="col-12 col-md-4">
-            <label className="form-label">Lọc theo ngày hẹn</label>
+        <div className={s.filters}>
+          <div className={s.fcol}>
+            <label>Từ ngày</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div className={s.fcol}>
+            <label>Đến ngày</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div className={s.fcol}>
+            <label>Trạng thái lịch hẹn</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="ALL">Tất cả</option>
+              <option value="ACTIVE">Còn hiệu lực</option>
+              <option value="CANCELED">Đã hủy</option>
+              <option value="1">Đã đặt</option>
+              <option value="2">Đã xác nhận</option>
+              <option value="3">Đang khám</option>
+              <option value="5">Hoàn tất</option>
+            </select>
+          </div>
+          <div className={cx("fcol", "grow")}>
+            <label>Tìm nhanh</label>
             <input
-              type="date"
-              className="form-control"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              max="2999-12-31"
+              placeholder="Tên bác sĩ / chuyên khoa / phòng"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
             />
-            <div className="form-text">Để trống = tất cả ngày</div>
           </div>
-          <div className="col-12 col-md-4">
-            <label className="form-label d-block">&nbsp;</label>
-            <div className="form-check">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="unpaidOnly"
-                checked={unpaidOnly}
-                onChange={(e) => setUnpaidOnly(e.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="unpaidOnly">
-                Chỉ hiển thị lịch <b>chưa thanh toán</b>
-              </label>
+          <div className={s.fcol}>
+            <label>&nbsp;</label>
+            <div className={s.btns}>
+              <button className={cx("btn", "btn-primary")} onClick={load} disabled={loading}>
+                {loading ? "Đang tải…" : "Làm mới"}
+              </button>
+              <button
+                className={cx("btn")}
+                onClick={() => {
+                  setFrom("");
+                  setTo("");
+                  setStatus("ALL");
+                  setKeyword("");
+                }}
+              >
+                Xóa lọc
+              </button>
             </div>
-          </div>
-          <div className="col-12 col-md-4">
-            <label className="form-label d-block">&nbsp;</label>
-            <button className="btn btn-primary" onClick={load} disabled={loading}>
-              {loading ? "Đang tải..." : "Làm mới"}
-            </button>
           </div>
         </div>
       </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {!error && loading && <div className="alert alert-info">Đang tải dữ liệu…</div>}
+      {error && <div className={cx("alert", "error")}>{error}</div>}
+      {!error && loading && <div className={cx("alert", "info")}>Đang tải dữ liệu…</div>}
       {!loading && !items.length && !error && (
-        <div className="alert alert-secondary">Không có lịch hẹn nào.</div>
+        <div className={cx("alert", "empty")}>Không có lịch nào phù hợp bộ lọc.</div>
       )}
 
-      <div className="d-flex flex-column gap-3">
-        {items.map((appt) => {
-          const p = appt.payment;
-          const paid = p?.status === "PAID";
-          const pending = p && p.status === "PENDING";
-          const amount = p?.amount ?? appt.payAmount ?? appt.phiDaGiam ?? appt.phiKhamGoc;
+      <div className={s.cards}>
+        {items.map((it) => {
+          const fee = it.phiDaGiam ?? it.phiKhamGoc;
+          const st = statusText(it.trangThai);
           return (
-            <div key={appt.idLichHen} className="card p-3">
-              <div className="d-flex flex-wrap justify-content-between gap-2">
-                <div className="me-3">
-                  <div className="fw-bold fs-5">{appt.tenChuyenKhoa}</div>
-                  <div>
-                    Bác sĩ: <b>{appt.tenBacSi}</b>
-                  </div>
-                  <div>
-                    Thời gian: <b>{(appt.gioHen || "").slice(0, 5)}</b> —{" "}
-                    <b>{fmtDate(appt.ngayHen)}</b>
-                  </div>
-                  <div>
-                    Giá: <b>{fmtMoney(appt.phiDaGiam ?? appt.phiKhamGoc)}</b>
-                  </div>
+            <div key={it.idLichHen} className={s.card}>
+              <div className={s["card-head"]}>
+                <div className={s.svc}>
+                  <span className={s.lbl}>Chuyên Khoa:</span>{" "}
+                  <b>{it.tenChuyenKhoa || "—"}</b>
                 </div>
+                <div className={cx("status", st.cls)}>{st.text}</div>
+              </div>
 
-                <div className="text-end">
-                  <div
-                    className={cls(
-                      "badge rounded-pill",
-                      paid ? "bg-success" : "bg-warning text-dark"
-                    )}
-                  >
-                    {paid
-                      ? "Đã thanh toán"
-                      : pending
-                      ? "Đang chờ thanh toán"
-                      : "Chưa thanh toán"}
-                  </div>
-                  <div className="small mt-2">
-                    Mã tham chiếu: <code>{p?.referenceCode || "-"}</code>
-                  </div>
+              <div className={s.grid}>
+                <div className={s.row}>
+                  <span className={s.lbl}>Phòng:</span>
+                  <span className={s.val}>{it.tenPhongKham || "—"}</span>
+                </div>
+                <div className={s.row}>
+                  <span className={s.lbl}>Bác sĩ:</span>
+                  <span className={s.val}>{it.tenBacSi || "—"}</span>
+                </div>
+                <div className={s.row}>
+                  <span className={s.lbl}>Số thứ tự:</span>
+                  <span className={cx("val", "hi")}>{it.sttKham || "-"}</span>
+                </div>
+                <div className={s.row}>
+                  <span className={s.lbl}>Giá:</span>
+                  <span className={cx("val", "hi")}>{fmtMoney(fee)}</span>
+                </div>
+                <div className={s.row}>
+                  <span className={s.lbl}>Thời gian:</span>
+                  <span className={s.val}>
+                    {(it.gioHen || "").slice(0, 5)} {fmtDate(it.ngayHen)}
+                  </span>
+                </div>
+                <div className={s.row}>
+                  <span className={s.lbl}>Trạng thái:</span>
+                  <span className={cx("val", st.cls)}>{st.text}</span>
                 </div>
               </div>
 
-              {/* QR / hành động */}
-              <div className="mt-3 d-flex flex-wrap align-items-start gap-3">
-                {pending && p?.qrUrl && (
-                  <div>
-                    <img
-                      src={p.qrUrl}
-                      alt="QR thanh toán"
-                      style={{
-                        width: 210,
-                        height: 210,
-                        objectFit: "contain",
-                        borderRadius: 8,
-                        border: "1px solid #eee",
-                      }}
-                    />
-                    <div className="mt-2 text-center">
-                      Số tiền: <b>{fmtMoney(amount)}</b>
-                    </div>
-                  </div>
+              <div className={s["card-actions"]}>
+                {Number(it.trangThai) !== -1 ? (
+                  <button className={cx("btn", "danger")} onClick={() => cancelAppt(it)}>
+                    Hủy lịch
+                  </button>
+                ) : (
+                  <span className={s.muted}>Lịch đã hủy</span>
                 )}
-
-                <div className="flex-grow-1">
-                  {!paid && (
-                    <button
-                      className="btn btn-outline-primary me-2"
-                      onClick={() => createOrShowPayment(appt)}
-                    >
-                      {pending ? "Hiển thị lại QR" : "Thanh toán"}
-                    </button>
-                  )}
-                  {paid && (
-                    <div className="text-success mt-2">
-                      ✅ Thanh toán thành công!
-                    </div>
-                  )}
-                </div>
+                <span className={s.code}>Mã lịch: #{it.idLichHen}</span>
               </div>
             </div>
           );

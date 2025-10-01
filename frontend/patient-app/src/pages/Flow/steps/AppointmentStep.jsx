@@ -5,7 +5,7 @@ import client from "../../../api/client";
 import Stepper from "../../../components/Stepper/Stepper";
 import s from "./AppointmentStep.module.css";
 
-const getFromSS = (k, d=null) => {
+const getFromSS = (k, d = null) => {
   try { return JSON.parse(sessionStorage.getItem(k) || "null") ?? d; }
   catch { return d; }
 };
@@ -15,7 +15,7 @@ const getPatient = () => {
 };
 
 export default function AppointmentStep() {
-  const { mode } = useParams(); // "bhyt" | "service" | "booking"
+  const { mode } = useParams(); // "bhyt" | "service" | "booking" (giữ nếu bạn dùng nơi khác)
   const navigate = useNavigate();
   const q = new URLSearchParams(useLocation().search);
   const idFromQuery = q.get("id");
@@ -72,7 +72,7 @@ export default function AppointmentStep() {
   useEffect(() => {
     if (!appt?.idLichHen) return;
 
-    // ĐÃ thanh toán server-side (chỉ xảy ra khi webhook đã cập nhật trước đó)
+    // Nếu server báo đã thanh toán
     if (Number(appt?.trangThai) === 2) {
       setPaid(true);
       setPayment(null);
@@ -99,17 +99,21 @@ export default function AppointmentStep() {
       clearInterval(pollRef.current);
       clearInterval(countdownRef.current);
 
-      // Server dùng order pending còn hạn (nếu có) hoặc tạo mới
+      // Server sẽ trả về đơn pending (nếu có) hoặc tạo mới
       const { data } = await client.post("/payments", { idLichHen });
-      setPayment(data);
 
-      // Bắt đầu đếm ngược (nếu server trả expireAt)
-      if (data?.expireAt) startCountdown(data.expireAt);
+      // ==== ÉP HẠN SỬ DỤNG 3 PHÚT TRÊN CLIENT ====
+      const clientExpireAt = new Date(Date.now() + 3 * 60 * 1000).toISOString();
+      // Nếu muốn ưu tiên server, dùng: data?.expireAt || clientExpireAt
+      const merged = { ...data, expireAt: clientExpireAt };
 
-      // Poll trạng thái đơn đến khi PAID
+      setPayment(merged);
+      startCountdown(merged.expireAt);
+
+      // Poll trạng thái đơn đến khi PAID hoặc hết hạn
       pollRef.current = setInterval(async () => {
         try {
-          const rs = await client.get(`/payments/${data.id}`);
+          const rs = await client.get(`/payments/${merged.id}`);
           const p = rs?.data || {};
           setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
 
@@ -117,15 +121,15 @@ export default function AppointmentStep() {
             setPaid(true);
             clearInterval(pollRef.current);
             clearInterval(countdownRef.current);
-            // đồng bộ lại appointment (trangThai=2)
+            // Đồng bộ lại appointment (trangThai=2)
             try {
               const rs2 = await client.get(`/appointments/${idLichHen}`);
               setAppt(rs2?.data);
             } catch {}
-          } else if (data?.expireAt) {
-            // kiểm tra hết hạn nếu có expireAt
+          } else {
+            // kiểm tra hết hạn (dựa theo merged.expireAt)
             const nowMs = Date.now();
-            const expMs = toMs(data.expireAt);
+            const expMs = toMs(merged.expireAt);
             if (expMs && nowMs >= expMs) {
               setExpired(true);
               clearInterval(pollRef.current);
@@ -133,7 +137,7 @@ export default function AppointmentStep() {
             }
           }
         } catch {
-          // bỏ qua tick lỗi
+          /* bỏ qua 1 tick lỗi */
         }
       }, 3000);
     } catch (e) {
@@ -180,7 +184,7 @@ export default function AppointmentStep() {
     return (
       <div className="container-fluid py-4">
         <div className={s.shell}>
-          <Stepper step={3}/>
+          <Stepper step={3} />
           <div className={s.loading}>Đang tải phiếu hẹn…</div>
         </div>
       </div>
@@ -190,7 +194,7 @@ export default function AppointmentStep() {
     return (
       <div className="container-fluid py-4">
         <div className={s.shell}>
-          <Stepper step={3}/>
+          <Stepper step={3} />
           <div className={s.error}>
             {error}
             <div className="mt-3">
@@ -221,7 +225,7 @@ export default function AppointmentStep() {
   return (
     <div className="container-fluid py-4">
       <div className={s.shell}>
-        <Stepper step={3}/>
+        <Stepper step={3} />
         <div className={s.title}>Hoàn Thành Đăng Ký</div>
         <div className={s.subtitle}>Kiểm tra thông tin và in phiếu khám</div>
 
@@ -254,7 +258,7 @@ export default function AppointmentStep() {
 
             <div className={s.row}>
               <span>Thời gian:</span>
-              <b>{appt.gioHen?.slice(0,5)} {formatDateVN(appt.ngayHen)}</b>
+              <b>{appt.gioHen?.slice(0, 5)} {formatDateVN(appt.ngayHen)}</b>
             </div>
 
             <div className={s.row}><span>Trạng thái thanh toán:</span>
@@ -278,24 +282,32 @@ export default function AppointmentStep() {
               <div className={s.error}>{payError}</div>
             ) : payment ? (
               <>
-                <img className={s.qrImg} alt="QR thanh toán" src={payment.qrUrl} />
-                <div className={s.qrMeta}>
-                  <div>Số tiền: <b>{Number(payment.amount).toLocaleString("vi-VN")} đ</b></div>
-                  <div>Nội dung CK: <code>{payment.transferContent}</code></div>
-                  {payment.expireAt ? (
-                    !expired ? <div>Hết hạn sau: <b>{countdown}</b></div>
-                              : <div className={s.warn}>Mã đã hết hạn</div>
-                  ) : null}
-                </div>
-                <div className="mt-2">
-                  <button
-                    className="btn btn-outline-secondary btn-sm"
-                    disabled={!expired}
-                    onClick={() => startPayment(appt.idLichHen)}
-                  >
-                    {expired ? "Tạo lại mã QR" : "Đang hiệu lực"}
-                  </button>
-                </div>
+                {/* ẨN QR khi đã hết hạn */}
+                {!expired ? (
+                  <>
+                    <img className={s.qrImg} alt="QR thanh toán" src={payment.qrUrl} />
+                    <div className={s.qrMeta}>
+                      <div>Số tiền: <b>{Number(payment.amount).toLocaleString("vi-VN")} đ</b></div>
+                      <div>Nội dung CK: <code>{payment.transferContent}</code></div>
+                      <div>Hết hạn sau: <b>{countdown}</b></div>
+                    </div>
+                    <div className="mt-2">
+                      <button className="btn btn-outline-secondary btn-sm" disabled>
+                        Đang hiệu lực
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={s.warn}>Mã đã hết hạn (quá 3 phút).</div>
+                    <button
+                      className="btn btn-outline-secondary btn-sm mt-2"
+                      onClick={() => startPayment(appt.idLichHen)}
+                    >
+                      Tạo lại mã QR
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <div className={s.error}>Không thể tạo đơn thanh toán</div>
@@ -330,6 +342,6 @@ export default function AppointmentStep() {
 
 function formatDateVN(d) {
   if (!d) return "--";
-  const [y,m,dd] = d.split("-");
+  const [y, m, dd] = d.split("-");
   return `${dd}/${m}/${y}`;
 }

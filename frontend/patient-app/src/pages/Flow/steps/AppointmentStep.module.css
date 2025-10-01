@@ -1,3 +1,4 @@
+/* src/pages/Flow/steps/AppointmentStep.module.css */
 .shell { max-width: 1024px; margin: 0 auto; }
 .title { font-size: 28px; font-weight: 700; text-align:center; margin-top:8px; }
 .subtitle { text-align:center; color:#6b7280; margin-bottom:20px; }
@@ -19,22 +20,28 @@
 .badgeDanger {
   background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:8px;
 }
-.note { color:#059669; margin-top:6px; }
+.badgeSuccess {
+  background:#dcfce7; color:#166534; padding:2px 8px; border-radius:8px;
+}
+.note { color:#059669; margin-left:6px; }
 
-.qrCard { background:#fff; border-radius:12px; padding:16px; text-align:center;
-          box-shadow: 0 8px 24px rgba(16,24,40,.06); }
+.qrCard {
+  background:#fff; border-radius:12px; padding:16px; text-align:center;
+  box-shadow: 0 8px 24px rgba(16,24,40,.06);
+}
 .qrTitle { color:#6b7280; margin-bottom:8px; }
 .qrImg { width:200px; height:200px; object-fit:contain; margin:auto; border-radius:8px; background:#f9fafb; }
+.qrMeta { margin-top:8px; font-size:14px; color:#374151; }
+.warn { color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:8px 10px; border-radius:10px; }
 
 .actions { display:flex; justify-content:center; gap:12px; margin:20px 0; }
 .help { background:#fffbeb; border:1px solid #fef3c7; border-radius:12px; padding:12px; color:#92400e; }
 
 .loading, .error { text-align:center; padding:40px 0; }
 .error { color:#b91c1c; }
+.paidBox { background:#ecfeff; border:1px solid #a5f3fc; color:#0c4a6e; padding:10px; border-radius:10px; }
 
-/* in ấn */
 @media print {
   .actions, .help { display:none; }
   .shell { max-width:none; }
-  
 }
