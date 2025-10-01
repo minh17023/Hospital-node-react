@@ -22,7 +22,14 @@ export const AppointmentController = {
     try {
       const u = req.user || {};
       if (u.kind !== "PATIENT") throw new AppError(403, "Chỉ bệnh nhân");
-      const items = await AppointmentService.listByPatient(Number(u.idBenhNhan));
+      const q = req.query || {};
+      const items = await AppointmentService.listByPatient(Number(u.idBenhNhan), {
+        from: q.from || null,
+        to: q.to || null,
+        status: q.status || "ALL",
+        limit: q.limit ? Number(q.limit) : 50,
+        offset: q.offset ? Number(q.offset) : 0,
+      });
       res.json({ items });
     } catch (e) { next(e); }
   },

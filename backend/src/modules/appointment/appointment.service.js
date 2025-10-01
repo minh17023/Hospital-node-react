@@ -144,8 +144,8 @@ export const AppointmentService = {
   /* ===== Common ===== */
   async getById(id) { return await AppointmentModel.getById(id); },
 
-  async listByPatient(idBenhNhan) {
-    return await AppointmentModel.listByPatient(idBenhNhan);
+  async listByPatient(idBenhNhan, opts = {}) {
+    return await AppointmentModel.listByPatient(idBenhNhan, opts);
   },
 
   async list({ idBacSi = null, ngay = null, limit = 50, offset = 0 }) {
@@ -163,29 +163,61 @@ export const AppointmentService = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-
-      const { appt, changed } = await AppointmentModel.cancelAndCompact(conn, id);
-      if (!appt) throw new AppError(404, "Không tìm thấy lịch hẹn");
-
+  
+      // 1) Khóa bản ghi lịch hẹn
+      const [[curr]] = await conn.query(
+        `SELECT * FROM LichHen WHERE idLichHen=? FOR UPDATE`, [id]
+      );
+      if (!curr) throw new AppError(404, "Không tìm thấy lịch hẹn");
+  
+      // 2) Idempotent: đã hủy rồi thì thoát sớm, không đụng ca
+      if (Number(curr.trangThai) === -1) {
+        await conn.commit();
+        return;
+      }
+  
+      // 3) Đặt trạng thái = -1 (đã hủy)
       await conn.query(
-        "UPDATE LichHen SET lyDoKham=CONCAT(COALESCE(lyDoKham,''),' | cancel by ',?) WHERE idLichHen=?",
+        `UPDATE LichHen SET trangThai=-1 WHERE idLichHen=?`,
+        [id]
+      );
+  
+      // 4) Nén hàng đợi trong cùng slot (bác sĩ, ngày, giờ)
+      await conn.query(
+        `UPDATE LichHen
+            SET sttKham = sttKham - 1
+          WHERE idBacSi=? AND ngayHen=? AND gioHen=?
+            AND trangThai<>-1 AND sttKham > ?`,
+        [curr.idBacSi, curr.ngayHen, curr.gioHen, curr.sttKham]
+      );
+  
+      // 5) Ghi chú người hủy
+      await conn.query(
+        `UPDATE LichHen
+            SET lyDoKham = CONCAT(COALESCE(lyDoKham,''),' | cancel by ',?)
+          WHERE idLichHen=?`,
         [byWho, id]
       );
-
-      if (changed) {
-        const idLLVbyWindow = await AppointmentModel.findOpenShiftForDoctor(appt.idBacSi, appt.ngayHen, appt.gioHen);
-        let idLLV = idLLVbyWindow;
-        if (!idLLV) {
-          idLLV = await AppointmentModel.findShiftByDoctorDateTime(appt.idBacSi, appt.ngayHen, appt.gioHen);
-        }
-        if (idLLV) {
-          await conn.query(
-            "UPDATE LichLamViec SET soLuongDaDangKy = GREATEST(0, soLuongDaDangKy - 1) WHERE idLichLamViec=?",
-            [idLLV]
-          );
-        }
+  
+      // 6) Giảm đúng ca: ưu tiên khớp theo cửa sổ giờ chứa gioHen;
+      //    nếu không có (trường hợp booking gioHen == gioVao), fallback theo gioVao
+      let idLLV = await AppointmentModel.findShiftByDoctorDateAndTimeWindow(
+        curr.idBacSi, curr.ngayHen, curr.gioHen
+      );
+      if (!idLLV) {
+        idLLV = await AppointmentModel.findShiftByDoctorDateTime(
+          curr.idBacSi, curr.ngayHen, curr.gioHen
+        );
       }
-
+      if (idLLV) {
+        await conn.query(
+          `UPDATE LichLamViec
+              SET soLuongDaDangKy = GREATEST(0, soLuongDaDangKy - 1)
+            WHERE idLichLamViec=?`,
+          [idLLV]
+        );
+      }
+  
       await conn.commit();
     } catch (e) {
       await conn.rollback();
@@ -194,4 +226,4 @@ export const AppointmentService = {
       conn.release();
     }
   }
-};
+}  
