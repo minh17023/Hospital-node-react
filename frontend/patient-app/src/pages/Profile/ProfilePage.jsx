@@ -13,7 +13,7 @@ const isValidBhyt = (c) =>
   c?.trangThai === 1 &&
   String(c.denNgay).slice(0, 10) >= new Date().toISOString().slice(0, 10);
 
-// Kỳ vọng { bhyt: null | {...} } – nhưng vẫn chịu vài shape khác
+// Kỳ vọng { bhyt: null | {...} } – vẫn chịu vài shape khác
 const extractSingleBhyt = (payload) => {
   const b = payload?.bhyt;
   if (!b) return null;
@@ -45,10 +45,10 @@ export default function ProfilePage() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const loadBhyt = async (idBenhNhan) => {
+  const loadBhyt = async (maBenhNhan) => {
     setLoadingBHYT(true);
     try {
-      const { data } = await client.get(`/patients/${idBenhNhan}/bhyt`);
+      const { data } = await client.get(`/patients/${maBenhNhan}/bhyt`);
       const c = extractSingleBhyt(data);
       setCard(c || null);
       setForm({
@@ -70,9 +70,10 @@ export default function ProfilePage() {
     }
   };
 
+  // 🔁 đổi dependency & gọi theo maBenhNhan
   useEffect(() => {
-    if (patient?.idBenhNhan) loadBhyt(patient.idBenhNhan);
-  }, [patient?.idBenhNhan]);
+    if (patient?.maBenhNhan) loadBhyt(patient.maBenhNhan);
+  }, [patient?.maBenhNhan]);
 
   // ---------- PROFILE ----------
   const P = patient || {};
@@ -80,22 +81,25 @@ export default function ProfilePage() {
     setPatient((prev) => ({ ...prev, [k]: e.target.value }));
 
   const saveProfile = async () => {
-    if (!patient?.idBenhNhan) return;
+    if (!patient?.maBenhNhan) return;
     setSaving(true);
     try {
-      await client.put(`/patients/${patient.idBenhNhan}`, {
+      await client.put(`/patients/${patient.maBenhNhan}`, {
         hoTen: P.hoTen, ngaySinh: P.ngaySinh, gioiTinh: P.gioiTinh,
         soDienThoai: P.soDienThoai, email: P.email, diaChi: P.diaChi,
         ngheNghiep: P.ngheNghiep, tinhTrangHonNhan: P.tinhTrangHonNhan,
         nguoiLienHe: P.nguoiLienHe, sdtLienHe: P.sdtLienHe,
       });
-      localStorage.setItem("PATIENT_INFO", JSON.stringify({
+      // lưu lại vào storage (giữ nguyên maBenhNhan)
+      const next = {
         ...patient,
         hoTen: P.hoTen, ngaySinh: P.ngaySinh, gioiTinh: P.gioiTinh,
         soDienThoai: P.soDienThoai, email: P.email, diaChi: P.diaChi,
         ngheNghiep: P.ngheNghiep, tinhTrangHonNhan: P.tinhTrangHonNhan,
         nguoiLienHe: P.nguoiLienHe, sdtLienHe: P.sdtLienHe,
-      }));
+      };
+      localStorage.setItem("PATIENT_INFO", JSON.stringify(next));
+      sessionStorage.setItem("PATIENT_INFO", JSON.stringify(next));
       alert("Đã lưu hồ sơ.");
     } catch (e) {
       alert(e?.response?.data?.message || "Không thể lưu hồ sơ");
@@ -106,20 +110,20 @@ export default function ProfilePage() {
   const setField = (k) => (e) => setForm((s0) => ({ ...s0, [k]: e.target.value }));
 
   const submitBhyt = async () => {
-    if (!patient?.idBenhNhan) return;
+    if (!patient?.maBenhNhan) return;
     if (!form.soThe || !form.denNgay) return alert("Nhập số thẻ & ngày hết hạn");
 
     try {
       if (card) {
-        await client.put(`/patients/${patient.idBenhNhan}/bhyt`, {
+        await client.put(`/patients/${patient.maBenhNhan}/bhyt`, {
           soThe: form.soThe, denNgay: form.denNgay,
         });
       } else {
-        await client.post(`/patients/${patient.idBenhNhan}/bhyt`, {
+        await client.post(`/patients/${patient.maBenhNhan}/bhyt`, {
           soThe: form.soThe, denNgay: form.denNgay, trangThai: 1,
         });
       }
-      await loadBhyt(patient.idBenhNhan);
+      await loadBhyt(patient.maBenhNhan);
       alert(card ? "Đã cập nhật BHYT." : "Đã thêm BHYT.");
     } catch (e) {
       alert(e?.response?.data?.message || "Không thể cập nhật BHYT");
@@ -150,6 +154,11 @@ export default function ProfilePage() {
       {tab === "profile" && patient && (
         <div className={`card ${s.cardCompact}`}>
           <div className={s.formGrid}>
+            <div className={s.field}>
+              <label className={s.label}>Mã bệnh nhân</label>
+              <input className={`form-control ${s.control}`} value={P.maBenhNhan || ""} disabled />
+            </div>
+
             <div className={s.field}>
               <label className={s.label}>Số CCCD</label>
               <input className={`form-control ${s.control}`} value={P.soCCCD || ""} disabled />

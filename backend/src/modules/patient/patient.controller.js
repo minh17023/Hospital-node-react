@@ -6,16 +6,16 @@ export const PatientController = {
   // GET /api/v1/patients/me
   async me(req, res, next) {
     try {
-      const { idBenhNhan, cccd, soCCCD } = req.user || {};
-      if (!idBenhNhan && !(cccd || soCCCD)) throw new AppError(401, "Chưa đăng nhập");
+      const { maBenhNhan, cccd, soCCCD } = req.user || {};
+      if (!maBenhNhan && !(cccd || soCCCD)) throw new AppError(401, "Chưa đăng nhập");
 
-      const patient = idBenhNhan
-        ? await PatientModel.findById(idBenhNhan)
+      const patient = maBenhNhan
+        ? await PatientModel.findByMa(maBenhNhan)
         : await PatientModel.findByCCCD(cccd || soCCCD);
 
       if (!patient) throw new AppError(404, "Không tìm thấy hồ sơ");
 
-      const bhyt = await PatientModel.listBHYT(patient.idBenhNhan);
+      const bhyt = await PatientModel.listBHYT(patient.maBenhNhan);
       const today = new Date().toISOString().slice(0, 10);
 
       const bhytHienHanh =
@@ -26,33 +26,42 @@ export const PatientController = {
     } catch (e) { next(e); }
   },
 
-  // GET /api/v1/patients/:idBenhNhan
+  // GET /api/v1/patients/:maBenhNhan
   async getOne(req, res, next) {
     try {
-      const id = Number(req.params.idBenhNhan);
-      const patient = await PatientModel.findById(id);
+      const ma = String(req.params.maBenhNhan || "");
+      const patient = await PatientModel.findByMa(ma);
       if (!patient) throw new AppError(404, "Không tìm thấy hồ sơ");
       res.json({ patient });
     } catch (e) { next(e); }
   },
 
-  // PUT /api/v1/patients/:idBenhNhan
+  // GET /api/v1/patients  (ADMIN)
+  async list(req, res, next) {
+    try {
+      const rs = await PatientService.list(req.query || {});
+      res.json(rs); // { items, total }
+    } catch (e) { next(e); }
+  },
+
+  // PUT /api/v1/patients/:maBenhNhan
   async update(req, res, next) {
     try {
-      const id = Number(req.params.idBenhNhan);
+      const ma = String(req.params.maBenhNhan || "");
       const patch = req.body || {};
-      const updated = await PatientService.updateProfile(id, patch);
+      const updated = await PatientService.updateProfile(ma, patch);
       res.json({ patient: updated });
     } catch (e) { next(e); }
   },
 
-  // DELETE /api/v1/patients/:idBenhNhan  (ADMIN)
+  // DELETE /api/v1/patients/:maBenhNhan  (ADMIN)
   async remove(req, res, next) {
     try {
-      const id = Number(req.params.idBenhNhan);
-      const exists = await PatientModel.findById(id);
+      const ma = String(req.params.maBenhNhan || "");
+      const exists = await PatientModel.findByMa(ma);
       if (!exists) throw new AppError(404, "Không tìm thấy hồ sơ");
-      const ok = await PatientService.deleteProfile(id);
+
+      const ok = await PatientService.deleteProfile(ma); 
       res.json({ deleted: ok });
     } catch (e) { next(e); }
   },

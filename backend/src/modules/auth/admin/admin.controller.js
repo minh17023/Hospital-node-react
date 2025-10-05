@@ -9,12 +9,25 @@ export const AdminAuthController = {
       const { tenDangNhap, matKhau } = req.body || {};
       if (!tenDangNhap || !matKhau) throw new AppError(400, "Thiếu username/password");
       const user = await UsersService.findByUsername(tenDangNhap);
-      if (!user || user.vaiTro !== 1 || user.trangThai !== 1) throw new AppError(401, "Không có quyền ADMIN hoặc tài khoản bị khóa");
+      if (!user || user.vaiTro !== 1 || user.trangThai !== 1)
+        throw new AppError(401, "Không có quyền ADMIN hoặc tài khoản bị khóa");
+
       const ok = await compare(matKhau, user.matKhauHash);
       if (!ok) throw new AppError(401, "Sai thông tin đăng nhập");
-      const accessToken = signAccessToken(user);
+
+      const accessToken = signAccessToken(user);   // JWT dùng maUser
       const refreshToken = signRefreshToken(user);
-      res.json({ accessToken, refreshToken, user: { idUser: user.idUser, tenDangNhap: user.tenDangNhap, hoTen: user.hoTen, vaiTro: user.vaiTro } });
+
+      res.json({
+        accessToken,
+        refreshToken,
+        user: {
+          maUser: user.maUser,
+          tenDangNhap: user.tenDangNhap,
+          hoTen: user.hoTen,
+          vaiTro: user.vaiTro
+        }
+      });
     } catch (e) { next(e); }
   }
 };

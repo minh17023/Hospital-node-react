@@ -1,119 +1,70 @@
 import { AppError } from "../../core/http/error.js";
-import {
-  findWorkingDaysByDoctorMonth,
-  findShiftsByDoctorDate,
-  listWorkshifts,
-  insertWorkshift,
-  generateWorkshifts,
-  updateWorkshift,
-  deleteWorkshift
-} from "./workshift.model.js";
+import { WorkshiftModel } from "./workshift.model.js";
 
-/* helpers */
-const isAdmin  = (ctx) => ctx?.role === "ADMIN";
-const isDoctor = (ctx) => ctx?.role === "DOCTOR";
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const isHHMM = (s) => /^\d{2}:\d{2}$/.test(String(s || ""));
+const toMinutes = (s) => {
+  const [h, m] = s.split(":").map(Number);
+  return h * 60 + m;
+};
 
-function monthBounds(monthStr) {
-  const [y, m] = (monthStr || "").split("-").map(Number);
-  if (!y || !m) throw new AppError(400, "month phải dạng YYYY-MM");
-  const first = new Date(y, m - 1, 1);
-  const last  = new Date(y, m, 0);
-  const iso = (d) => d.toISOString().slice(0, 10);
-  return { firstDay: iso(first), lastDay: iso(last) };
-}
+export const WorkshiftService = {
+  async list(qs) {
+    const limit = qs.limit ? Number(qs.limit) : 50;
+    const offset = qs.offset ? Number(qs.offset) : 0;
+    const filters = {
+      q: qs.q || "",
+      status: qs.status || "ALL",
+      limit, offset
+    };
+    const [items, total] = await Promise.all([
+      WorkshiftModel.list(filters),
+      WorkshiftModel.count(filters)
+    ]);
+    return { items, total, limit, offset };
+  },
 
-/* ===== FE ===== */
-export async function getWorkingDays(doctorId, monthStr) {
-  const { firstDay, lastDay } = monthBounds(monthStr);
-  return findWorkingDaysByDoctorMonth(Number(doctorId), firstDay, lastDay);
-}
+  async get(ma) {
+    const row = await WorkshiftModel.get(ma);
+    if (!row) throw new AppError(404, "Không tìm thấy ca làm việc");
+    return row;
+  },
 
-export async function getShiftsOfDate(doctorId, ngayLamViec) {
-  if (!ngayLamViec) throw new AppError(400, "Thiếu ngayLamViec (YYYY-MM-DD)");
-  return findShiftsByDoctorDate(Number(doctorId), ngayLamViec);
-}
+  async create(body) {
+    const { tenCaLamViec, gioVao, gioRa, trangThai = 1, moTa = null } = body || {};
+    if (!tenCaLamViec) throw new AppError(400, "Thiếu tên ca");
+    if (!isHHMM(gioVao)) throw new AppError(400, "gioVao dạng HH:mm");
+    if (!isHHMM(gioRa)) throw new AppError(400, "gioRa dạng HH:mm");
 
-/* ===== Admin & Doctor ===== */
-export async function adminList(query, ctx) {
-  // Doctor chỉ xem ca của mình
-  if (isDoctor(ctx)) query.idBacSi = ctx.idBacSi;
+    if (toMinutes(gioVao) >= toMinutes(gioRa)) {
+      throw new AppError(400, "gioVao phải nhỏ hơn gioRa");
+    }
 
-  return listWorkshifts({
-    idBacSi: query.idBacSi || query.doctorId,
-    idPhongKham: query.idPhongKham || query.clinicId,
-    from: query.from, to: query.to,
-    trangThaiLamViec: query.trangThaiLamViec ?? query.status
-  });
-}
+    const ma = await WorkshiftModel.create({ tenCaLamViec, gioVao, gioRa, trangThai, moTa });
+    return await WorkshiftModel.get(ma);
+  },
 
-export async function adminCreate(body, ctx) {
-  for (const k of ["idBacSi", "idPhongKham", "idCaLamViec", "ngayLamViec"]) {
-    if (!body[k]) throw new AppError(422, `Thiếu ${k}`);
+  async update(ma, body) {
+    if (body.gioVao && !isHHMM(body.gioVao)) throw new AppError(400, "gioVao dạng HH:mm");
+    if (body.gioRa  && !isHHMM(body.gioRa))  throw new AppError(400, "gioRa dạng HH:mm");
+
+    if (body.gioVao && body.gioRa) {
+      if (toMinutes(body.gioVao) >= toMinutes(body.gioRa)) {
+        throw new AppError(400, "gioVao phải nhỏ hơn gioRa");
+      }
+    }
+
+    const changed = await WorkshiftModel.update(ma, body);
+    if (!changed) throw new AppError(404, "Không có thay đổi hoặc ca không tồn tại");
+    return await WorkshiftModel.get(ma);
+  },
+
+  async remove(ma) {
+    // không cho xóa nếu đang được tham chiếu bởi LichLamViec
+    const ref = await WorkshiftModel.isReferenced(ma);
+    if (ref) throw new AppError(409, "Ca đang được dùng trong lịch làm việc, không thể xóa");
+
+    const n = await WorkshiftModel.remove(ma);
+    if (!n) throw new AppError(404, "Không tìm thấy ca để xóa");
+    return { deleted: true };
   }
-
-  if (isDoctor(ctx)) {
-    if (Number(body.idBacSi) !== Number(ctx.idBacSi))
-      throw new AppError(403, "Chỉ được tạo ca cho chính mình");
-    if (new Date(body.ngayLamViec) < new Date(todayISO()))
-      throw new AppError(400, "Không được tạo ca trong quá khứ");
-  }
-
-  if (body.soLuongBenhNhanToiDa == null) body.soLuongBenhNhanToiDa = 20;
-  if (body.trangThaiLamViec == null) body.trangThaiLamViec = 1;
-
-  body.nguoiTao = `${ctx.role || "UNKNOWN"}:${ctx.idUser ?? ""}`;
-  return insertWorkshift(body);
-}
-
-export async function adminGenerate(body, ctx) {
-  if (!isAdmin(ctx)) throw new AppError(403, "Chỉ Admin được generate nhiều ca");
-
-  for (const k of ["idBacSi", "idPhongKham", "from", "to"]) {
-    if (!body[k]) throw new AppError(422, `Thiếu ${k}`);
-  }
-  const list = body.idCaLamViecList || body.shiftIds;
-  if (!Array.isArray(list) || !list.length) throw new AppError(422, "Thiếu idCaLamViecList");
-
-  return generateWorkshifts({
-    idBacSi: body.idBacSi,
-    idPhongKham: body.idPhongKham,
-    from: body.from, to: body.to,
-    idCaLamViecList: list,
-    soLuongBenhNhanToiDa: body.soLuongBenhNhanToiDa ?? 20,
-    trangThaiLamViec: body.trangThaiLamViec ?? 1,
-    nguoiTao: `${ctx.role || "UNKNOWN"}:${ctx.idUser ?? ""}`
-  });
-}
-
-export async function adminUpdate(idLichLamViec, body, ctx) {
-  // Nếu Doctor: chỉ sửa ca của mình và ràng buộc an toàn
-  if (isDoctor(ctx)) {
-    const own = await listWorkshifts({ idBacSi: ctx.idBacSi });
-    const cur = own.find(x => Number(x.idLichLamViec) === Number(idLichLamViec));
-    if (!cur) throw new AppError(404, "Không tìm thấy ca của bạn");
-
-    if (body.idBacSi && Number(body.idBacSi) !== Number(ctx.idBacSi))
-      throw new AppError(403, "Không được đổi sang bác sĩ khác");
-
-    if (body.ngayLamViec && new Date(body.ngayLamViec) < new Date(todayISO()))
-      throw new AppError(400, "Không được sửa ca quá khứ");
-
-    if (body.soLuongBenhNhanToiDa != null &&
-        Number(body.soLuongBenhNhanToiDa) < Number(cur.soLuongDaDangKy))
-      throw new AppError(400, "soLuongBenhNhanToiDa không được nhỏ hơn soLuongDaDangKy hiện tại");
-  }
-
-  const rs = await updateWorkshift(Number(idLichLamViec), body);
-  if (!rs.affected) throw new AppError(400, "Không có thay đổi");
-  return rs;
-}
-
-export async function adminRemove(idLichLamViec, ctx) {
-  if (isDoctor(ctx)) {
-    const own = await listWorkshifts({ idBacSi: ctx.idBacSi });
-    const cur = own.find(x => Number(x.idLichLamViec) === Number(idLichLamViec));
-    if (!cur) throw new AppError(404, "Không tìm thấy ca của bạn");
-  }
-  return deleteWorkshift(Number(idLichLamViec)); // sẽ 409 nếu đã có đặt
-}
+};

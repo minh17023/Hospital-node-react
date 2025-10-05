@@ -1,20 +1,20 @@
 import { pool } from "../../config/db.js";
 
 export const ClinicModel = {
-  async findById(idPhongKham) {
+  async findByMa(maPhongKham) {
     const [rows] = await pool.query(
-      `SELECT * FROM PhongKham WHERE idPhongKham=? LIMIT 1`,
-      [idPhongKham]
+      `SELECT * FROM PhongKham WHERE maPhongKham=? LIMIT 1`,
+      [maPhongKham]
     );
     return rows[0] || null;
   },
 
-  async list({ q=null, idChuyenKhoa=null, trangThai=null, offset=0, limit=50 }) {
+  async list({ q=null, maChuyenKhoa=null, trangThai=null, offset=0, limit=50 }) {
     const where = [];
     const params = [];
 
     if (q) { where.push(`tenPhongKham LIKE ?`); params.push(`%${q}%`); }
-    if (idChuyenKhoa) { where.push(`idChuyenKhoa=?`); params.push(Number(idChuyenKhoa)); }
+    if (maChuyenKhoa) { where.push(`maChuyenKhoa=?`); params.push(String(maChuyenKhoa)); }
     if (trangThai !== null && trangThai !== undefined && trangThai !== "") {
       where.push(`trangThai=?`); params.push(Number(trangThai));
     }
@@ -24,7 +24,7 @@ export const ClinicModel = {
       SELECT *
       FROM PhongKham
       ${sqlWhere}
-      ORDER BY idPhongKham DESC
+      ORDER BY maPhongKham DESC
       LIMIT ?, ?`;
     params.push(Number(offset), Number(limit));
 
@@ -32,11 +32,11 @@ export const ClinicModel = {
     return rows;
   },
 
-  async count({ q=null, idChuyenKhoa=null, trangThai=null }) {
+  async count({ q=null, maChuyenKhoa=null, trangThai=null }) {
     const where = [];
     const params = [];
     if (q) { where.push(`tenPhongKham LIKE ?`); params.push(`%${q}%`); }
-    if (idChuyenKhoa) { where.push(`idChuyenKhoa=?`); params.push(Number(idChuyenKhoa)); }
+    if (maChuyenKhoa) { where.push(`maChuyenKhoa=?`); params.push(String(maChuyenKhoa)); }
     if (trangThai !== null && trangThai !== undefined && trangThai !== "") {
       where.push(`trangThai=?`); params.push(Number(trangThai));
     }
@@ -47,27 +47,37 @@ export const ClinicModel = {
 
   async create(data) {
     const {
-      tenPhongKham, idChuyenKhoa,
+      tenPhongKham, maChuyenKhoa = null,
       tang = null, dienTich = null, sucChua = null,
       trangBi = null, ghiChu = null, trangThai = 1
     } = data;
 
-    const [rs] = await pool.query(
+    // Trigger sẽ sinh maPhongKham
+    await pool.query(
       `INSERT INTO PhongKham
-        (tenPhongKham, idChuyenKhoa, tang, dienTich, sucChua, trangBi, ghiChu, trangThai)
+        (tenPhongKham, maChuyenKhoa, tang, dienTich, sucChua, trangBi, ghiChu, trangThai)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        tenPhongKham, idChuyenKhoa,
+        tenPhongKham, maChuyenKhoa,
         tang, dienTich, sucChua,
         trangBi, ghiChu, trangThai
       ]
     );
-    return rs.insertId;
+
+    // Lấy lại bản ghi mới nhất theo tên (giả định tạo không trùng tên đồng thời)
+    const [rows] = await pool.query(
+      `SELECT * FROM PhongKham
+       WHERE tenPhongKham=? 
+       ORDER BY maPhongKham DESC
+       LIMIT 1`,
+      [tenPhongKham]
+    );
+    return rows[0] || null;
   },
 
-  async update(idPhongKham, patch) {
+  async update(maPhongKham, patch) {
     const allow = [
-      "tenPhongKham","idChuyenKhoa","tang","dienTich","sucChua",
+      "tenPhongKham","maChuyenKhoa","tang","dienTich","sucChua",
       "trangBi","ghiChu","trangThai"
     ];
     const fields = [];
@@ -76,18 +86,18 @@ export const ClinicModel = {
       if (patch[k] !== undefined) { fields.push(`${k}=?`); values.push(patch[k]); }
     }
     if (!fields.length) return 0;
-    values.push(idPhongKham);
+    values.push(maPhongKham);
     const [rs] = await pool.query(
-      `UPDATE PhongKham SET ${fields.join(", ")} WHERE idPhongKham=?`,
+      `UPDATE PhongKham SET ${fields.join(", ")} WHERE maPhongKham=?`,
       values
     );
     return rs.affectedRows;
   },
 
-  async remove(idPhongKham) {
+  async remove(maPhongKham) {
     const [rs] = await pool.query(
-      `DELETE FROM PhongKham WHERE idPhongKham=?`,
-      [idPhongKham]
+      `DELETE FROM PhongKham WHERE maPhongKham=?`,
+      [maPhongKham]
     );
     return rs.affectedRows;
   },

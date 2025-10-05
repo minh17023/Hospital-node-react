@@ -1,6 +1,6 @@
 import { ROLES, STAFF } from "../auth/roles.js";
 
-export function patientSelfOrStaff(paramName = "idBenhNhan") {
+export function patientSelfOrStaff(paramName = "maBenhNhan") {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -11,18 +11,18 @@ export function patientSelfOrStaff(paramName = "idBenhNhan") {
     const isPatient = req.user.role === ROLES.PATIENT || req.user.kind === "PATIENT";
     if (!isPatient) return res.status(403).json({ message: "Forbidden" });
 
-    const me = Number(req.user.idBenhNhan || 0);
-    if (!me) return res.status(401).json({ message: "Không có idBenhNhan trong token" });
+    const me = String(req.user.maBenhNhan || "");
+    if (!me) return res.status(401).json({ message: "Không có maBenhNhan trong token" });
 
-    // Lấy id từ params -> body -> query
+    // Lấy mã từ params -> body -> query
     let id =
       req.params?.[paramName] ??
       req.body?.[paramName] ??
       req.query?.[paramName];
 
-    id = Number(id || 0);
+    id = String(id || "");
 
-    // Nếu client không truyền id => tự gán id của chính họ rồi cho qua
+    // Nếu client không truyền mã => tự gán mã của chính họ rồi cho qua
     if (!id) {
       if (req.body) req.body[paramName] = me;
       if (req.query && req.query[paramName] === undefined) req.query[paramName] = me;

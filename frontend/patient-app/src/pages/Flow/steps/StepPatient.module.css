@@ -51,5 +51,9 @@
 .ok { background: #ecfdf5; color: #047857; }
 .bad { background: #fef2f2; color: #b91c1c; }
 .muted { background: #f3f4f6; color: #4b5563; }
-
-.actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px; }
+.actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center; 
+  gap: 10px;
+}

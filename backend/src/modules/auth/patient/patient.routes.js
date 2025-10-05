@@ -10,7 +10,7 @@ r.post("/register", authGuard(false), PatientAuthController.register);
 // login CCCD
 r.post("/login", PatientAuthController.login);
 
-// lấy hồ sơ + bhyt
+// lấy hồ sơ + bhyt theo token
 r.get("/me", authGuard(true), PatientAuthController.me);
 
 export default r;

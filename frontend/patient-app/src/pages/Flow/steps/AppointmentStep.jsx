@@ -5,6 +5,7 @@ import client from "../../../api/client";
 import Stepper from "../../../components/Stepper/Stepper";
 import s from "./AppointmentStep.module.css";
 
+/* ========= helpers ========= */
 const getFromSS = (k, d = null) => {
   try { return JSON.parse(sessionStorage.getItem(k) || "null") ?? d; }
   catch { return d; }
@@ -13,104 +14,124 @@ const getPatient = () => {
   try { return JSON.parse(localStorage.getItem("PATIENT_INFO") || "null"); }
   catch { return null; }
 };
+const toMs = (dtStr) => {
+  if (!dtStr) return null;
+  const iso = dtStr.includes("T") ? dtStr : dtStr.replace(" ", "T");
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+const pad2 = (n) => String(n).padStart(2, "0");
+const formatDateVN = (d) => {
+  if (!d) return "--";
+  const [y, m, dd] = d.split("-");
+  return `${dd}/${m}/${y}`;
+};
 
 export default function AppointmentStep() {
-  const { mode } = useParams(); // "bhyt" | "service" | "booking" (giữ nếu bạn dùng nơi khác)
+  const { mode } = useParams(); // "bhyt" | "service" | "booking" (tham chiếu UI)
   const navigate = useNavigate();
   const q = new URLSearchParams(useLocation().search);
-  const idFromQuery = q.get("id");
+  // ưu tiên ?ma=..., tương thích cũ ?id=...
+  const codeFromQuery = q.get("ma") || q.get("id");
 
+  // core states
   const [loading, setLoading] = useState(true);
   const [appt, setAppt] = useState(null);
   const [error, setError] = useState("");
 
   // payment states
   const [payInitLoading, setPayInitLoading] = useState(true);
-  const [payment, setPayment] = useState(null); // {id,status,amount,expireAt,qrUrl,transferContent,...}
+  const [payment, setPayment] = useState(null);   // { id, status, amount, qrUrl, transferContent, paidAt, expireAt }
   const [paid, setPaid] = useState(false);
   const [expired, setExpired] = useState(false);
   const [countdown, setCountdown] = useState("--:--");
   const [payError, setPayError] = useState("");
 
+  // refs
   const pollRef = useRef(null);
   const countdownRef = useRef(null);
 
+  // cached infos
   const patient = useMemo(() => getPatient(), []);
   const pickedService = useMemo(() => getFromSS("SELECTED_SERVICE", null), []);
   const resultCache = useMemo(() => getFromSS("APPOINTMENT_RESULT", null), []);
+  const apptCodeFromCache = resultCache?.maLichHen || resultCache?.idLichHen || null;
 
-  /* ========== 1) Load appointment ========== */
+  /* 1) Load appointment theo MÃ */
   useEffect(() => {
-    (async () => {
+    let mounted = true;
+
+    const run = async () => {
       setLoading(true); setError("");
       try {
-        let data = null;
-        if (idFromQuery) {
-          const rs = await client.get(`/appointments/${idFromQuery}`);
-          data = rs?.data;
-        } else if (resultCache?.idLichHen) {
-          const rs = await client.get(`/appointments/${resultCache.idLichHen}`);
-          data = rs?.data;
-        } else {
-          throw new Error("Không tìm thấy lịch hẹn vừa tạo.");
-        }
-        setAppt(data);
+        const code = codeFromQuery || apptCodeFromCache;
+        if (!code) throw new Error("Không tìm thấy lịch hẹn vừa tạo.");
+
+        // API mới: GET /appointments/:ma
+        const rs = await client.get(`/appointments/${code}`);
+        if (!mounted) return;
+        setAppt(rs?.data);
       } catch (e) {
+        if (!mounted) return;
         setError(e?.response?.data?.message || e?.message || "Lỗi tải lịch hẹn");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
-    })();
+    };
+
+    run();
 
     return () => {
-      clearInterval(pollRef.current);
-      clearInterval(countdownRef.current);
+      mounted = false;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     };
-  }, [idFromQuery, resultCache?.idLichHen]);
+  }, [codeFromQuery, apptCodeFromCache]);
 
-  /* ========== 2) Khi có appointment -> init/tái sử dụng order ========== */
+  /* 2) Khi có appointment -> nếu chưa thanh toán thì khởi tạo/tái sử dụng order */
   useEffect(() => {
-    if (!appt?.idLichHen) return;
+    const ma = appt?.maLichHen || appt?.idLichHen;
+    if (!ma) return;
 
-    // Nếu server báo đã thanh toán
     if (Number(appt?.trangThai) === 2) {
+      // Đã thanh toán/đăng ký hoàn tất (server authority)
       setPaid(true);
       setPayment(null);
       setPayInitLoading(false);
       setExpired(false);
       setCountdown("--:--");
-      clearInterval(pollRef.current);
-      clearInterval(countdownRef.current);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
       return;
     }
 
-    startPayment(appt.idLichHen);
+    startPayment(ma);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appt?.idLichHen]);
+  }, [appt?.maLichHen, appt?.idLichHen, appt?.trangThai]);
 
-  async function startPayment(idLichHen) {
+  async function startPayment(maLichHen) {
+    // reset
+    setPayError("");
+    setPayInitLoading(true);
+    setExpired(false);
+    setPaid(false);
+    setPayment(null);
+    setCountdown("--:--");
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+
     try {
-      setPayError("");
-      setPayInitLoading(true);
-      setExpired(false);
-      setPaid(false);
-      setPayment(null);
-      setCountdown("--:--");
-      clearInterval(pollRef.current);
-      clearInterval(countdownRef.current);
+      // API mới: POST /payments  body: { maLichHen }
+      const { data } = await client.post("/payments", { maLichHen });
 
-      // Server sẽ trả về đơn pending (nếu có) hoặc tạo mới
-      const { data } = await client.post("/payments", { idLichHen });
-
-      // ==== ÉP HẠN SỬ DỤNG 3 PHÚT TRÊN CLIENT ====
+      // ép hạn client 3' nếu server không có expireAt
       const clientExpireAt = new Date(Date.now() + 3 * 60 * 1000).toISOString();
-      // Nếu muốn ưu tiên server, dùng: data?.expireAt || clientExpireAt
-      const merged = { ...data, expireAt: clientExpireAt };
+      const merged = { ...data, expireAt: data?.expireAt || clientExpireAt };
 
       setPayment(merged);
       startCountdown(merged.expireAt);
 
-      // Poll trạng thái đơn đến khi PAID hoặc hết hạn
+      // Poll GET /payments/:maDonHang
       pollRef.current = setInterval(async () => {
         try {
           const rs = await client.get(`/payments/${merged.id}`);
@@ -119,25 +140,25 @@ export default function AppointmentStep() {
 
           if (p.status === "PAID") {
             setPaid(true);
-            clearInterval(pollRef.current);
-            clearInterval(countdownRef.current);
-            // Đồng bộ lại appointment (trangThai=2)
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+
+            // Refresh lại appointment (để lấy trạng thái/phiDaGiam mới nhất)
             try {
-              const rs2 = await client.get(`/appointments/${idLichHen}`);
+              const rs2 = await client.get(`/appointments/${maLichHen}`);
               setAppt(rs2?.data);
             } catch {}
           } else {
-            // kiểm tra hết hạn (dựa theo merged.expireAt)
             const nowMs = Date.now();
             const expMs = toMs(merged.expireAt);
             if (expMs && nowMs >= expMs) {
               setExpired(true);
-              clearInterval(pollRef.current);
-              clearInterval(countdownRef.current);
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+              if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
             }
           }
         } catch {
-          /* bỏ qua 1 tick lỗi */
+          // bỏ qua 1 tick
         }
       }, 3000);
     } catch (e) {
@@ -147,39 +168,28 @@ export default function AppointmentStep() {
     }
   }
 
-  function toMs(dtStr) {
-    if (!dtStr) return null;
-    const iso = dtStr.includes("T") ? dtStr : dtStr.replace(" ", "T");
-    const t = new Date(iso).getTime();
-    return Number.isFinite(t) ? t : null;
-  }
-
   function startCountdown(expireAtStr) {
     const tick = () => {
       const end = toMs(expireAtStr);
       if (!end) { setCountdown("--:--"); return; }
       const diff = Math.max(0, Math.floor((end - Date.now()) / 1000));
-      const mm = String(Math.floor(diff / 60)).padStart(2, "0");
-      const ss = String(diff % 60).padStart(2, "0");
+      const mm = pad2(Math.floor(diff / 60));
+      const ss = pad2(diff % 60);
       setCountdown(`${mm}:${ss}`);
       if (diff <= 0) {
         setExpired(true);
-        clearInterval(countdownRef.current);
+        if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
       }
     };
     tick();
     countdownRef.current = setInterval(tick, 1000);
   }
 
-  const onPrint = () => {
-    if (!paid) {
-      alert("Vui lòng hoàn tất thanh toán trước khi in phiếu khám.");
-      return;
-    }
-    window.print();
-  };
+  const onPrint = () =>
+    paid ? window.print() : alert("Vui lòng hoàn tất thanh toán trước khi in phiếu khám.");
   const goHome = () => navigate("/menu");
 
+  /* ========= Render ========= */
   if (loading) {
     return (
       <div className="container-fluid py-4">
@@ -207,11 +217,9 @@ export default function AppointmentStep() {
   }
   if (!appt) return null;
 
-  /* ========== Giá hiển thị (ưu tiên server) ========== */
+  // Giá hiển thị: ưu tiên server (phiDaGiam/phiKhamGoc), fallback service đã chọn
   const baseFee = Number(appt.phiKhamGoc ?? pickedService?.price ?? 0);
-  const priceShow = Number(
-    appt.phiDaGiam ?? pickedService?.priceInfo?.total ?? baseFee
-  );
+  const priceShow = Number(appt.phiDaGiam ?? pickedService?.priceInfo?.total ?? baseFee);
   const discountNote =
     appt.phiDaGiam != null && appt.phiDaGiam !== baseFee
       ? "Áp dụng giảm 50% BHYT"
@@ -221,6 +229,7 @@ export default function AppointmentStep() {
   const svName = pickedService?.name || appt.tenChuyenKhoa || "--";
   const roomName = pickedService?.clinic?.name || appt.tenPhongKham || "--";
   const bsName = appt.tenBacSi || (pickedService?.clinic?.doctorNames?.[0]) || "--";
+  const maLichHen = appt?.maLichHen || appt?.idLichHen;
 
   return (
     <div className="container-fluid py-4">
@@ -234,7 +243,7 @@ export default function AppointmentStep() {
           <div className={s.card}>
             <div className={s.cardHead}>Thông Tin Bệnh Nhân</div>
             <div className={s.row}><span>Họ tên:</span><b>{bn.hoTen || appt.tenBenhNhan || "--"}</b></div>
-            <div className={s.row}><span>CCCD:</span><b>{bn.soCCCD || "--"}</b></div>
+            <div className={s.row}><span>CCCD:</span><b>{bn.soCCCD || appt.soCCCD || "--"}</b></div>
             <div className={s.row}><span>Ngày sinh:</span><b>{bn.ngaySinh || "--"}</b></div>
             <div className={s.row}><span>Giới tính:</span><b>{bn.gioiTinh === "F" ? "Nữ" : bn.gioiTinh === "M" ? "Nam" : "--"}</b></div>
             <div className={s.row}><span>SDT:</span><b>{bn.soDienThoai || "--"}</b></div>
@@ -258,10 +267,11 @@ export default function AppointmentStep() {
 
             <div className={s.row}>
               <span>Thời gian:</span>
-              <b>{appt.gioHen?.slice(0, 5)} {formatDateVN(appt.ngayHen)}</b>
+              <b>{(appt.gioHen || "").slice(0, 5)} {formatDateVN(appt.ngayHen)}</b>
             </div>
 
-            <div className={s.row}><span>Trạng thái thanh toán:</span>
+            <div className={s.row}>
+              <span>Trạng thái thanh toán:</span>
               {paid ? (
                 <b className={s.badgeSuccess}>Đã thanh toán</b>
               ) : (
@@ -282,7 +292,6 @@ export default function AppointmentStep() {
               <div className={s.error}>{payError}</div>
             ) : payment ? (
               <>
-                {/* ẨN QR khi đã hết hạn */}
                 {!expired ? (
                   <>
                     <img className={s.qrImg} alt="QR thanh toán" src={payment.qrUrl} />
@@ -292,9 +301,7 @@ export default function AppointmentStep() {
                       <div>Hết hạn sau: <b>{countdown}</b></div>
                     </div>
                     <div className="mt-2">
-                      <button className="btn btn-outline-secondary btn-sm" disabled>
-                        Đang hiệu lực
-                      </button>
+                      <button className="btn btn-outline-secondary btn-sm" disabled>Đang hiệu lực</button>
                     </div>
                   </>
                 ) : (
@@ -302,7 +309,7 @@ export default function AppointmentStep() {
                     <div className={s.warn}>Mã đã hết hạn (quá 3 phút).</div>
                     <button
                       className="btn btn-outline-secondary btn-sm mt-2"
-                      onClick={() => startPayment(appt.idLichHen)}
+                      onClick={() => startPayment(maLichHen)}
                     >
                       Tạo lại mã QR
                     </button>
@@ -338,10 +345,4 @@ export default function AppointmentStep() {
       </div>
     </div>
   );
-}
-
-function formatDateVN(d) {
-  if (!d) return "--";
-  const [y, m, dd] = d.split("-");
-  return `${dd}/${m}/${y}`;
 }

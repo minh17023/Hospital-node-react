@@ -1,27 +1,28 @@
 import { pool } from "../../config/db.js";
 
 export const InsuranceModel = {
-  // Lấy thẻ BHYT (vì 1-1, trả 1 bản ghi hoặc null)
-  async getByPatient(idBenhNhan) {
+  // Lấy thẻ BHYT (1-1 theo bệnh nhân)
+  async getByPatient(maBenhNhan) {
     const [rows] = await pool.query(
-      `SELECT * FROM BaoHiemYTe WHERE idBenhNhan=? LIMIT 1`,
-      [idBenhNhan]
+      `SELECT * FROM BaoHiemYTe WHERE maBenhNhan=? LIMIT 1`,
+      [maBenhNhan]
     );
     return rows[0] || null;
   },
 
-  // Tạo thẻ mới
-  async createOne({ idBenhNhan, soThe, denNgay, trangThai = 1 }) {
-    const [rs] = await pool.query(
-      `INSERT INTO BaoHiemYTe (idBenhNhan, soThe, denNgay, trangThai, ngayTao)
+  // Tạo thẻ mới (DB sẽ tự sinh maBHYT)
+  async createOne({ maBenhNhan, soThe, denNgay, trangThai = 1 }) {
+    await pool.query(
+      `INSERT INTO BaoHiemYTe (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
        VALUES (?, ?, ?, ?, NOW())`,
-      [idBenhNhan, soThe, denNgay, trangThai]
+      [maBenhNhan, soThe, denNgay, trangThai]
     );
-    return rs.insertId;
+    // 1-1 theo BN nên reselect theo bệnh nhân
+    return await this.getByPatient(maBenhNhan);
   },
 
-  // Cập nhật thẻ theo idBenhNhan (vì 1-1)
-  async updateByPatient(idBenhNhan, patch) {
+  // Cập nhật thẻ theo maBenhNhan (vì 1-1)
+  async updateByPatient(maBenhNhan, patch) {
     const allow = ["soThe", "denNgay", "trangThai"];
     const sets = [];
     const vals = [];
@@ -29,24 +30,24 @@ export const InsuranceModel = {
       if (patch[k] !== undefined) { sets.push(`${k}=?`); vals.push(patch[k]); }
     }
     if (!sets.length) return 0;
-    vals.push(idBenhNhan);
+    vals.push(maBenhNhan);
     const [rs] = await pool.query(
-      `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE idBenhNhan=?`,
+      `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE maBenhNhan=?`,
       vals
     );
     return rs.affectedRows;
   },
 
   // Boolean: có thẻ còn hạn và đang active?
-  async hasValidByPatient(idBenhNhan) {
+  async hasValidByPatient(maBenhNhan) {
     const [rows] = await pool.query(
       `SELECT 1
          FROM BaoHiemYTe
-        WHERE idBenhNhan=?
+        WHERE maBenhNhan=?
           AND trangThai=1
           AND DATE(denNgay) >= CURDATE()
         LIMIT 1`,
-      [idBenhNhan]
+      [maBenhNhan]
     );
     return !!rows.length;
   }

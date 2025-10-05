@@ -9,18 +9,35 @@ export default function RegisterBHYT() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const s = localStorage.getItem("PATIENT_INFO");
-    if (!s) return nav("/");
-    setP(JSON.parse(s));
+    const raw = localStorage.getItem("PATIENT_INFO") || sessionStorage.getItem("PATIENT_INFO");
+    if (!raw) { nav("/"); return; }
+    try {
+      const patient = JSON.parse(raw);
+      if (!patient?.maBenhNhan) { nav("/"); return; }
+      setP(patient);
+    } catch {
+      nav("/");
+    }
   }, [nav]);
 
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const set = (k) => (e) => setF((s0) => ({ ...s0, [k]: e.target.value }));
 
   const submit = async () => {
     if (!f.soThe || !f.denNgay) return alert("Nhập số thẻ & ngày hết hạn");
     setLoading(true);
     try {
-      await client.post(`/patients/${p.idBenhNhan}/bhyt`, f);
+      // API mới: /patients/:maBenhNhan/bhyt  → trả { bhyt: card }
+      const { data } = await client.post(`/patients/${p.maBenhNhan}/bhyt`, f);
+
+      // lưu trạng thái BHYT để màn menu hiển thị đúng
+      const card = data?.bhyt || null;
+      const valid = !!card && card.trangThai === 1 &&
+        String(card.denNgay).slice(0, 10) >= new Date().toISOString().slice(0, 10);
+
+      sessionStorage.setItem("HAS_VALID_BHYT", valid ? "1" : "0");
+      if (valid) sessionStorage.setItem("CURRENT_BHYT", JSON.stringify(card));
+      else sessionStorage.removeItem("CURRENT_BHYT");
+
       nav("/menu");
     } catch (e) {
       alert(e?.response?.data?.message || "Không thể tạo BHYT");
@@ -30,7 +47,6 @@ export default function RegisterBHYT() {
   };
 
   const skip = () => {
-    // Nếu muốn nhớ quyết định này: localStorage.setItem("SKIP_BHYT", "1");
     nav("/menu");
   };
 

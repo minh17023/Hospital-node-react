@@ -1,16 +1,14 @@
-// src/modules/doctor/doctor.controller.js
 import { DoctorService } from "./doctor.service.js";
 
 export const DoctorController = {
   async list(req, res, next) {
     try {
       const {
-        idChuyenKhoa, q, trangThai, feeMin, feeMax,
+        maChuyenKhoa, q, trangThai, feeMin, feeMax,
         limit = 50, offset = 0,
-      } = req.query;
+      } = req.query || {};
       const items = await DoctorService.list({
-        idChuyenKhoa, q, trangThai,
-        feeMin, feeMax, limit, offset,
+        maChuyenKhoa, q, trangThai, feeMin, feeMax, limit, offset,
       });
       res.json({ items });
     } catch (e) { next(e); }
@@ -18,7 +16,7 @@ export const DoctorController = {
 
   async get(req, res, next) {
     try {
-      const item = await DoctorService.getById(Number(req.params.id));
+      const item = await DoctorService.getByMa(String(req.params.maBacSi || ""));
       if (!item) return res.status(404).json({ message: "Không tìm thấy bác sĩ" });
       res.json(item);
     } catch (e) { next(e); }
@@ -26,9 +24,9 @@ export const DoctorController = {
 
   async listBySpecialty(req, res, next) {
     try {
-      const { idChuyenKhoa } = req.params;
+      const { maChuyenKhoa } = req.params;
       const { trangThai, limit = 50, offset = 0 } = req.query || {};
-      const items = await DoctorService.listBySpecialty(Number(idChuyenKhoa), {
+      const items = await DoctorService.listBySpecialty(String(maChuyenKhoa), {
         trangThai, limit, offset
       });
       res.json({ items });
@@ -44,14 +42,14 @@ export const DoctorController = {
 
   async update(req, res, next) {
     try {
-      const updated = await DoctorService.update(Number(req.params.id), req.body || {});
+      const updated = await DoctorService.update(String(req.params.maBacSi || ""), req.body || {});
       res.json(updated);
     } catch (e) { next(e); }
   },
 
   async remove(req, res, next) {
     try {
-      await DoctorService.remove(Number(req.params.id));
+      await DoctorService.remove(String(req.params.maBacSi || ""));
       res.json({ ok: true });
     } catch (e) { next(e); }
   },

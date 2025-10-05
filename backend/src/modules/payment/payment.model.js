@@ -4,21 +4,22 @@ const T_ORDER = "DonHang";
 const T_EVENT = "WebhookSepayEvent";
 
 export const PaymentModel = {
-  async getAppointmentInfo(idLichHen, conn = pool) {
+  async getAppointmentInfo(maLichHen, conn = pool) {
     const [rows] = await conn.query(
       `SELECT l.*, b.soCCCD
          FROM LichHen l
-         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE l.idLichHen=? LIMIT 1`,
-      [idLichHen]
+         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+        WHERE l.maLichHen=? LIMIT 1`,
+      [maLichHen]
     );
     return rows[0] || null;
   },
 
-  async upsertByAppointment({ idLichHen, referenceCode, soTien, qrUrl, ghiChu }, conn = pool) {
-    const [rs] = await conn.query(
+  // INSERT … ON DUP theo maLichHen (cần UNIQUE(maLichHen))
+  async upsertByAppointment({ maLichHen, referenceCode, soTien, qrUrl, ghiChu }, conn = pool) {
+    await conn.query(
       `INSERT INTO ${T_ORDER}
-          (idLichHen, referenceCode, soTien, qrUrl, gateway, trangThai, ghiChu)
+          (maLichHen, referenceCode, soTien, qrUrl, gateway, trangThai, ghiChu)
        VALUES (?, ?, ?, ?, 'SEPAY', 0, ?)
        ON DUPLICATE KEY UPDATE
           referenceCode=VALUES(referenceCode),
@@ -27,44 +28,44 @@ export const PaymentModel = {
           trangThai=0,
           ghiChu=VALUES(ghiChu),
           createdAt=CURRENT_TIMESTAMP`,
-      [idLichHen, referenceCode, soTien, qrUrl, ghiChu]
+      [maLichHen, referenceCode, soTien, qrUrl, ghiChu]
     );
-    return rs.insertId || null;
   },
 
-  async findById(idDonHang) {
+  // 🔁 lấy theo **mã đơn hàng**
+  async findById(maDonHang) {
     const [rows] = await pool.query(
       `SELECT d.*, d.trangThai AS dhTrangThai,
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l  ON l.idLichHen = d.idLichHen
-         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE d.idDonHang=? LIMIT 1`,
-      [idDonHang]
+         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+        WHERE d.maDonHang=? LIMIT 1`,
+      [maDonHang]
     );
     return rows[0] || null;
   },
 
-  async listByAppointment(idLichHen) {
+  async listByAppointment(maLichHen) {
     const [rows] = await pool.query(
       `SELECT d.*, d.trangThai AS dhTrangThai,
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l  ON l.idLichHen = d.idLichHen
-         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE d.idLichHen=?
-        ORDER BY d.createdAt DESC, d.idDonHang DESC`,
-      [idLichHen]
+         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+        WHERE d.maLichHen=?
+        ORDER BY d.createdAt DESC, d.maDonHang DESC`,
+      [maLichHen]
     );
     return rows;
   },
 
-  // so sánh không phân biệt hoa/thường
+  // trả về **maDonHang** để FE poll
   async findByReference(referenceCode, conn = pool) {
     const [rows] = await conn.query(
-      `SELECT idDonHang, idLichHen, soTien, trangThai
+      `SELECT maDonHang, maLichHen, soTien, trangThai
          FROM ${T_ORDER}
         WHERE UPPER(referenceCode)=UPPER(?) LIMIT 1`,
       [referenceCode]
@@ -72,36 +73,34 @@ export const PaymentModel = {
     return rows[0] || null;
   },
 
-  async findLatestByAppointment(idLichHen, conn = pool) {
+  async findLatestByAppointment(maLichHen, conn = pool) {
     const [rows] = await conn.query(
       `SELECT d.*, d.trangThai AS dhTrangThai,
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen l  ON l.idLichHen = d.idLichHen
-         LEFT JOIN BenhNhan b ON b.idBenhNhan = l.idBenhNhan
-        WHERE d.idLichHen=?
-        ORDER BY d.createdAt DESC, d.idDonHang DESC
+         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+        WHERE d.maLichHen=?
+        ORDER BY d.createdAt DESC, d.maDonHang DESC
         LIMIT 1`,
-      [idLichHen]
+      [maLichHen]
     );
     return rows[0] || null;
   },
 
-  async markPaid(idDonHang, conn = pool) {
+  // 🔁 set PAID theo **mã đơn hàng**
+  async markPaid(maDonHang, conn = pool) {
     const [rs] = await conn.query(
       `UPDATE ${T_ORDER}
-          SET trangThai=1,
-              paidAt=NOW(),
+          SET trangThai=1, paidAt=NOW(),
               ghiChu=CONCAT(COALESCE(ghiChu,''),' | paid:webhook')
-        WHERE idDonHang=?`,
-      [idDonHang]
+        WHERE maDonHang=?`,
+      [maDonHang]
     );
     return rs.affectedRows || 0;
   },
 
-
-  // Log webhook; cho phép ghi đè referenceCode bằng mã bóc từ content
   async logWebhook({ httpStatus, body, overrideRef = null }, conn = pool) {
     const b = body || {};
     const refToSave = overrideRef || b.referenceCode || null;

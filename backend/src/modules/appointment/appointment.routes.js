@@ -8,11 +8,11 @@ import { ROLES } from "../../core/auth/roles.js";
 const r = Router();
 
 /* ===== PATIENT ===== */
-// Booking: idLichLamViec trên URL
+// Booking: maLichLamViec trên URL
 r.post(
-  "/appointments/booking/:idLichLamViec",
+  "/appointments/booking/:maLichLamViec",
   authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
+  patientSelfOrStaff("maBenhNhan"),
   AppointmentController.createOnline
 );
 
@@ -20,7 +20,7 @@ r.post(
 r.post(
   "/appointments/walkin",
   authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
+  patientSelfOrStaff("maBenhNhan"),
   AppointmentController.createWalkin
 );
 
@@ -28,20 +28,20 @@ r.post(
 r.get(
   "/appointments/my",
   authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
+  patientSelfOrStaff("maBenhNhan"),
   AppointmentController.myList
 );
 
 // Hủy lịch của tôi
 r.put(
-  "/appointments/:id/cancel",
+  "/appointments/:maLichHen/cancel",
   authGuard(true),
-  patientSelfOrStaff("idBenhNhan"),
+  patientSelfOrStaff("maBenhNhan"),
   AppointmentController.cancelMy
 );
 
 /* ===== COMMON ===== */
-r.get("/appointments/:id", authGuard(true), AppointmentController.get);
+r.get("/appointments/:maLichHen", authGuard(true), AppointmentController.get);
 
 /* ===== DOCTOR & ADMIN ===== */
 r.get(
@@ -52,14 +52,14 @@ r.get(
 );
 
 r.put(
-  "/appointments/:id/status",
+  "/appointments/:maLichHen/status",
   authGuard(true),
   requireRole(ROLES.DOCTOR, ROLES.ADMIN),
   AppointmentController.updateStatus
 );
 
 r.put(
-  "/appointments/:id/cancel-by-doctor",
+  "/appointments/:maLichHen/cancel-by-doctor",
   authGuard(true),
   requireRole(ROLES.DOCTOR, ROLES.ADMIN),
   AppointmentController.cancelByStaff

@@ -12,8 +12,8 @@ export const SpecialtyController = {
   // Public
   async detail(req, res, next) {
     try {
-      const id = Number(req.params.id);
-      const data = await SpecialtyService.detail(id);
+      const ma = String(req.params.maChuyenKhoa || "");
+      const data = await SpecialtyService.detail(ma);
       res.json(data);
     } catch (e) { next(e); }
   },
@@ -29,8 +29,8 @@ export const SpecialtyController = {
   // Admin
   async update(req, res, next) {
     try {
-      const id = Number(req.params.id);
-      const updated = await SpecialtyService.update(id, req.body || {});
+      const ma = String(req.params.maChuyenKhoa || "");
+      const updated = await SpecialtyService.update(ma, req.body || {});
       res.json(updated);
     } catch (e) { next(e); }
   },
@@ -38,8 +38,8 @@ export const SpecialtyController = {
   // Admin
   async remove(req, res, next) {
     try {
-      const id = Number(req.params.id);
-      await SpecialtyService.remove(id);
+      const ma = String(req.params.maChuyenKhoa || "");
+      await SpecialtyService.remove(ma);
       res.status(204).end();
     } catch (e) { next(e); }
   }

@@ -8,7 +8,7 @@ const r = Router();
 
 /** Public: danh sách & chi tiết */
 r.get("/specialties", SpecialtyController.list);
-r.get("/specialties/:id", SpecialtyController.detail);
+r.get("/specialties/:maChuyenKhoa", SpecialtyController.detail);
 
 /** Admin: tạo, cập nhật, xoá */
 r.post(
@@ -19,14 +19,14 @@ r.post(
 );
 
 r.put(
-  "/specialties/:id",
+  "/specialties/:maChuyenKhoa",
   authGuard(true),
   requireRole(ROLES.ADMIN),
   SpecialtyController.update
 );
 
 r.delete(
-  "/specialties/:id",
+  "/specialties/:maChuyenKhoa",
   authGuard(true),
   requireRole(ROLES.ADMIN),
   SpecialtyController.remove

@@ -1,48 +1,122 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import { ROLES } from "./utils/auth";
 
-import { RequireAuth, RequireRole } from "./routes/Guards";
+import Login from "./pages/Login";
+import RegisterDoctor from "./pages/RegisterDoctor";
 
-import AdminLogin from "./pages/auth/AdminLogin";
-import DoctorLogin from "./pages/auth/DoctorLogin";
+// Admin pages
+import AdminHome from "./pages/admin/AdminHome";
+import AdminAppointments from "./pages/admin/Appointments";
+import AdminSchedules from "./pages/admin/Schedules";
+import AdminDoctors from "./pages/admin/Doctors";
+import AdminPatients from "./pages/admin/Patients";
+import AdminPayments from "./pages/admin/Payments";
+import AdminSettings from "./pages/admin/Settings";
 
-import AdminLayout from "./components/admin/AdminLayout";
-import DoctorLayout from "./components/doctor/DoctorLayout";
+// NEW: các trang quản trị bổ sung
+import AdminSpecialties from "./pages/admin/Specialties";
+import AdminClinics from "./pages/admin/Clinics";
+import AdminShifts from "./pages/admin/Shifts";
+import AdminWebhooks from "./pages/admin/Webhooks";
 
-import AdminDashboard from "./pages/admin/Dashboard";
-import DoctorDashboard from "./pages/doctor/Dashboard";
+// Doctor pages
+import DoctorHome from "./pages/doctor/DoctorHome";
+import MyAppointments from "./pages/doctor/MyAppointments";
+import MySchedule from "./pages/doctor/MySchedule";
+import PatientsReadonly from "./pages/doctor/PatientsReadonly";
+import Profile from "./pages/doctor/Profile";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* mặc định đưa về login doctor */}
-        <Route path="/" element={<Navigate to="/login/doctor" replace />} />
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register-doctor" element={<RegisterDoctor />} />
 
-        {/* login */}
-        <Route path="/login/admin"  element={<AdminLogin />} />
-        <Route path="/login/doctor" element={<DoctorLogin />} />
+      {/* Admin */}
+      <Route path="/admin" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminHome />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/appointments" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminAppointments />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/schedules" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminSchedules />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/doctors" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminDoctors />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/patients" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminPatients />
+        </ProtectedRoute>
+      }/>
 
-        {/* Khu vực cần đăng nhập */}
-        <Route element={<RequireAuth />}>
-          {/* Admin */}
-          <Route element={<RequireRole allow={["ADMIN"]} />}>
-            <Route element={<AdminLayout />}>
-              <Route path="/admin" element={<AdminDashboard />} />
-              {/* thêm route con cho admin tại đây */}
-            </Route>
-          </Route>
+      {/* NEW: chuyên khoa / phòng / ca / webhooks */}
+      <Route path="/admin/specialties" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminSpecialties />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/clinics" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminClinics />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/shifts" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminShifts />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/payments" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminPayments />
+        </ProtectedRoute>
+      }/>
+      <Route path="/admin/settings" element={
+        <ProtectedRoute roles={[ROLES.ADMIN]}>
+          <AdminSettings />
+        </ProtectedRoute>
+      }/>
 
-          {/* Doctor */}
-          <Route element={<RequireRole allow={["DOCTOR"]} />}>
-            <Route element={<DoctorLayout />}>
-              <Route path="/doctor" element={<DoctorDashboard />} />
-              {/* thêm route con cho doctor tại đây */}
-            </Route>
-          </Route>
-        </Route>
+      {/* Doctor */}
+      <Route path="/doctor" element={
+        <ProtectedRoute roles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <DoctorHome />
+        </ProtectedRoute>
+      }/>
+      <Route path="/doctor/my-appointments" element={
+        <ProtectedRoute roles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <MyAppointments />
+        </ProtectedRoute>
+      }/>
+      <Route path="/doctor/my-schedule" element={
+        <ProtectedRoute roles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <MySchedule />
+        </ProtectedRoute>
+      }/>
+      <Route path="/doctor/patients" element={
+        <ProtectedRoute roles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <PatientsReadonly />
+        </ProtectedRoute>
+      }/>
+      <Route path="/doctor/profile" element={
+        <ProtectedRoute roles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <Profile />
+        </ProtectedRoute>
+      }/>
 
-        <Route path="*" element={<div style={{ padding: 16 }}>404</div>} />
-      </Routes>
-    </BrowserRouter>
+      {/* default */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
   );
 }

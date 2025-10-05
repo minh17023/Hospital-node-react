@@ -23,21 +23,27 @@ export function authGuard(required = true) {
         audience: "hospital-erp-clients",
       });
 
-      // --- chuẩn hoá ---
+      // --- Chuẩn hoá role ---
       let role = p.role;
       if (typeof role === "string") role = ROLE_NAME_TO_NUM[role] ?? null;
 
+      // Back-compat: nếu token cũ còn idUser/idBenhNhan dạng số -> chuyển sang mã string
+      const maUserFromOld   = p.maUser ;
+      const maBNFromOld     = p.maBenhNhan ;
+
       const user = { ...p, role };
 
-      if (user.kind === "PATIENT") {
-        user.idBenhNhan = Number(user.idBenhNhan ?? user.sub);
+      if (p.kind === "PATIENT") {
+        user.kind = "PATIENT";
+        user.maBenhNhan = String(maBNFromOld ?? p.sub ?? "");
       } else {
-        user.idUser = Number(user.idUser ?? user.sub);
+        user.kind = "USER";
+        user.maUser = String(maUserFromOld ?? p.sub ?? "");
       }
 
       req.user = user;
       return next();
-    } catch (e) {
+    } catch {
       if (required) return res.status(401).json({ message: "Invalid/expired token" });
       req.user = null; return next();
     }

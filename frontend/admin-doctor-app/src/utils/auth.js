@@ -1,57 +1,38 @@
-const KEY = "ADMIN_DOCTOR_AUTH";
+export const ROLES = { ADMIN: "ADMIN", DOCTOR: "DOCTOR" };
 
-// map số vaiTro từ BE sang role chữ
-export function mapRoleFromVaiTro(v) {
-  switch (Number(v)) {
-    case 1: return "ADMIN";
-    case 2: return "DOCTOR";
-    default: return "UNKNOWN";
+// map vaiTro (1=ADMIN, 2=DOCTOR) => tên role FE
+export function roleFromVaiTro(v) {
+  return Number(v) === 1 ? ROLES.ADMIN : ROLES.DOCTOR;
+}
+
+export function setAuth({ accessToken, refreshToken, user }) {
+  if (accessToken) localStorage.setItem("ACCESS_TOKEN", accessToken);
+  if (refreshToken) localStorage.setItem("REFRESH_TOKEN", refreshToken);
+  if (user) {
+    const me = {
+      maUser: user.maUser,
+      tenDangNhap: user.tenDangNhap,
+      hoTen: user.hoTen,
+      vaiTro: user.vaiTro,
+      role: roleFromVaiTro(user.vaiTro),
+    };
+    localStorage.setItem("ME", JSON.stringify(me));
   }
 }
 
-// chuẩn hoá payload từ BE -> format nội bộ
-export function normalizeAuthFromServer(payload = {}) {
-  const token = payload.accessToken || payload.token || "";
-  const refreshToken = payload.refreshToken || payload.refresh_token || "";
-
-  const u = payload.user || {};
-  return {
-    token,
-    refreshToken,
-    user: {
-      id: u.idUser ?? u.id ?? u.userId ?? null,
-      username: u.tenDangNhap ?? u.username ?? "",
-      name: u.hoTen ?? u.name ?? "",
-      role: u.role ? String(u.role).toUpperCase() : mapRoleFromVaiTro(u.vaiTro),
-      raw: u, // giữ lại nếu cần dùng thêm
-    },
-    raw: payload, // giữ bản gốc để debug
-  };
+export function clearAuth() {
+  localStorage.removeItem("ACCESS_TOKEN");
+  localStorage.removeItem("REFRESH_TOKEN");
+  localStorage.removeItem("ME");
 }
 
-export function saveAuth(payloadFromServer) {
-  const normalized = normalizeAuthFromServer(payloadFromServer);
-  localStorage.setItem(KEY, JSON.stringify(normalized));
+export function getMe() {
+  try { return JSON.parse(localStorage.getItem("ME") || "null"); }
+  catch { return null; }
 }
 
-export function getAuth() {
-  try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; }
-}
-
-export function getToken() {
-  const a = getAuth();
-  // hỗ trợ cả các khoá cũ để không vỡ backward-compat
-  return a?.token || a?.accessToken || "";
-}
-
-export function getRole() {
-  const a = getAuth();
-  // ưu tiên role đã chuẩn hoá, fallback từ vaiTro nếu có
-  const role = a?.user?.role || mapRoleFromVaiTro(a?.user?.raw?.vaiTro);
-  return (role || "").toUpperCase();
-}
-
-export function logout() {
-  localStorage.removeItem(KEY);
-  window.location.href = "/login/doctor";
+export function hasRole(...roles) {
+  const me = getMe();
+  if (!me) return false;
+  return roles.includes(me.role);
 }

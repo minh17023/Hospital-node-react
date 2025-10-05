@@ -11,7 +11,7 @@ export const ClinicController = {
   async listBySpecialty(req, res, next) {
     try {
       const items = await ClinicService.listBySpecialty(
-        Number(req.params.idChuyenKhoa),
+        String(req.params.maChuyenKhoa || ""),
         req.query || {}
       );
       res.json(items);
@@ -28,7 +28,7 @@ export const ClinicController = {
   async update(req, res, next) {
     try {
       const item = await ClinicService.update(
-        Number(req.params.idPhongKham),
+        String(req.params.maPhongKham || ""),
         req.body || {}
       );
       res.json(item);
@@ -37,7 +37,7 @@ export const ClinicController = {
 
   async remove(req, res, next) {
     try {
-      await ClinicService.remove(Number(req.params.idPhongKham));
+      await ClinicService.remove(String(req.params.maPhongKham || ""));
       res.status(204).end();
     } catch (e) { next(e); }
   },

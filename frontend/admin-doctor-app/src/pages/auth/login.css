@@ -1,7 +1,0 @@
-.wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; background:#f5f7fb; }
-.card { width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:22px 20px; box-shadow:0 10px 30px rgba(0,0,0,.05); }
-.form { display:flex; flex-direction:column; gap:8px; }
-.form input { padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
-.btn { margin-top:8px; padding:10px 12px; border:none; background:#0ea5e9; color:#fff; border-radius:10px; cursor:pointer; }
-.err { background:#fef2f2; border:1px solid #fee2e2; color:#991b1b; padding:8px 10px; border-radius:10px; }
-.hint { color:#9ca3af; font-size:12px; text-align:center; margin-top:10px; }

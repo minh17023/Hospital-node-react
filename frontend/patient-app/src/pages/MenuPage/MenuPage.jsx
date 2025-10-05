@@ -32,21 +32,17 @@ export default function MenuPage() {
   }, [nav]);
 
   useEffect(() => {
-    if (!patient?.idBenhNhan) return;
+    if (!patient?.maBenhNhan) return;               // 🔁 đổi sang maBenhNhan
     let mounted = true;
     setChecking(true);
 
     client
-      .get(`/patients/${patient.idBenhNhan}/insurance/has-valid`)
-      .then(({ data }) => {
+      .get(`/patients/${patient.maBenhNhan}/insurance/has-valid`) // 🔁 đường dẫn theo mã
+      .then(({data}) => {
+        // nếu client có interceptor trả thẳng data
         const ok = !!data?.hasValid;
         sessionStorage.setItem("HAS_VALID_BHYT", ok ? "1" : "0");
-        if (ok && data?.currentCard)
-          sessionStorage.setItem(
-            "CURRENT_BHYT",
-            JSON.stringify(data.currentCard)
-          );
-        else sessionStorage.removeItem("CURRENT_BHYT");
+        sessionStorage.removeItem("CURRENT_BHYT");
         if (mounted) setHasValid(ok);
       })
       .catch(() => {
@@ -59,26 +55,18 @@ export default function MenuPage() {
     return () => {
       mounted = false;
     };
-  }, [patient?.idBenhNhan]);
+  }, [patient?.maBenhNhan]);                         // 🔁 dependency theo mã
 
   const goBhyt = () => {
     if (checking) {
       alert("Đang kiểm tra thẻ BHYT, vui lòng đợi...");
       return;
     }
-
-    // đọc cờ từ state hoặc storage (phòng khi state chưa kịp đồng bộ)
-    const has =
-      hasValid || sessionStorage.getItem("HAS_VALID_BHYT") === "1";
-
+    const has = hasValid || sessionStorage.getItem("HAS_VALID_BHYT") === "1";
     if (has) {
-      // Có BHYT hợp lệ -> vào flow BHYT
       nav("/flow/bhyt/step-1");
     } else {
-      // Không hợp lệ -> thông báo và chuyển sang dịch vụ thường
-      alert(
-        "Tài khoản hiện không có thẻ BHYT hợp lệ. Hệ thống sẽ chuyển sang Khám Dịch Vụ."
-      );
+      alert("Tài khoản hiện không có thẻ BHYT hợp lệ. Hệ thống sẽ chuyển sang Khám Dịch Vụ.");
       nav("/flow/service/step-1");
     }
   };
@@ -98,21 +86,13 @@ export default function MenuPage() {
           <div className="flex-grow-1 text-start">
             <div className="fw-bold fs-5">Khám Bảo Hiểm Y Tế</div>
             <div className="text-muted">
-              {checking
-                ? "Đang kiểm tra thẻ..."
-                : hasValid
-                ? "Sử dụng thẻ BHYT"
-                : "Không đủ điều kiện BHYT"}
+              {checking ? "Đang kiểm tra thẻ..." : hasValid ? "Sử dụng thẻ BHYT" : "Không đủ điều kiện BHYT"}
             </div>
           </div>
           <div className="fs-3 text-muted">›</div>
         </button>
 
-        <button
-          type="button"
-          className={s.tile}
-          onClick={() => nav("/flow/service/step-1")}
-        >
+        <button type="button" className={s.tile} onClick={() => nav("/flow/service/step-1")}>
           <div className={s.icon} style={{ background: "#10b981", color: "#fff" }}>
             ▣
           </div>
@@ -123,11 +103,7 @@ export default function MenuPage() {
           <div className="fs-3 text-muted">›</div>
         </button>
 
-        <button
-          type="button"
-          className={s.tile}
-          onClick={() => nav("/flow/booking/step-1")}
-        >
+        <button type="button" className={s.tile} onClick={() => nav("/flow/booking/step-1")}>
           <div className={s.icon} style={{ background: "#8b5cf6", color: "#fff" }}>
             🕒
           </div>

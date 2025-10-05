@@ -11,17 +11,32 @@ export default function EntryCCCD() {
   const nav = useNavigate();
 
   const submit = async (val) => {
-    if (!val || val.length !== 12) return alert("Nhập đủ 12 số CCCD");
+    const cccd = String(val || "").replace(/\D/g, "");
+    if (cccd.length !== 12) return alert("Nhập đủ 12 số CCCD");
+
     setLoading(true);
     try {
-      const { data } = await client.post("/auth/patient/login", { soCCCD: val });
+      const { data } = await client.post("/auth/patient/login", { soCCCD: cccd });
+
       localStorage.setItem("PATIENT_TOKEN", data.accessToken);
       localStorage.setItem("PATIENT_INFO", JSON.stringify(data.patient));
       nav("/menu");
     } catch (e) {
-      if (e?.response?.status === 404) {
-        localStorage.setItem("PENDING_CCCD", val);
-        nav("/register");
+      const status = e?.response?.status;
+      if (status === 404) {
+        // Lưu CCCD để auto-fill form đăng ký
+        localStorage.setItem("PENDING_CCCD", cccd);
+
+        // Thông báo + hỏi người dùng có muốn đăng ký ngay không
+        const ok = window.confirm(
+          "Không tìm thấy hồ sơ bệnh nhân với CCCD này.\nBạn có muốn đăng ký hồ sơ mới ngay bây giờ không?"
+        );
+        if (ok) {
+          nav("/register");
+        } else {
+          // Giữ keypad mở để người dùng nhập lại/sửa
+          setShow(true);
+        }
       } else {
         alert(e?.response?.data?.message || "Lỗi đăng nhập");
       }
@@ -46,19 +61,30 @@ export default function EntryCCCD() {
             onFocus={() => setShow(true)}
             onChange={(e) => setCccd(e.target.value.replace(/\D/g, "").slice(0, 12))}
           />
-          <button className="btn btn-outline-secondary" type="button" onClick={() => setShow(true)}>
+          <button
+            className="btn btn-outline-secondary"
+            type="button"
+            onClick={() => setShow(true)}
+            title="Nhập CCCD bằng bàn phím màn hình / quét"
+          >
             📷
           </button>
         </div>
 
         <div className="d-grid">
-          <button className="btn btn-primary btn-lg" disabled={loading} onClick={() => submit(soCCCD)}>
+          <button
+            className="btn btn-primary btn-lg"
+            disabled={loading}
+            onClick={() => submit(soCCCD)}
+          >
             {loading ? "Đang xác thực..." : "Xác nhận"}
           </button>
         </div>
       </div>
 
-      {show && <CccdPad value={soCCCD} onClose={() => setShow(false)} onSubmit={submit} />}
+      {show && (
+        <CccdPad value={soCCCD} onClose={() => setShow(false)} onSubmit={submit} />
+      )}
     </div>
   );
 }

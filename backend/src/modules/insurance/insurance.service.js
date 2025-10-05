@@ -4,32 +4,32 @@ import { InsuranceModel } from "./insurance.model.js";
 
 export const InsuranceService = {
   // GET: lấy thẻ (hoặc null)
-  async getByPatient(idBenhNhan) {
-    return InsuranceModel.getByPatient(idBenhNhan);
+  async getByPatient(maBenhNhan) {
+    return InsuranceModel.getByPatient(maBenhNhan);
   },
 
   // POST: tạo mới (nếu đã có → 409). Sync BenhNhan.soBHYT
-  async createOne(idBenhNhan, { soThe, denNgay, trangThai = 1 }) {
-    const existed = await InsuranceModel.getByPatient(idBenhNhan);
+  async createOne(maBenhNhan, { soThe, denNgay, trangThai = 1 }) {
+    const existed = await InsuranceModel.getByPatient(maBenhNhan);
     if (existed) throw new AppError(409, "Bệnh nhân đã có thẻ BHYT");
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const [rs] = await conn.query(
-        `INSERT INTO BaoHiemYTe (idBenhNhan, soThe, denNgay, trangThai, ngayTao)
+      await conn.query(
+        `INSERT INTO BaoHiemYTe (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
          VALUES (?, ?, ?, ?, NOW())`,
-        [idBenhNhan, soThe, denNgay, trangThai]
+        [maBenhNhan, soThe, denNgay, trangThai]
       );
 
       await conn.query(
-        `UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`,
-        [soThe, idBenhNhan]
+        `UPDATE BenhNhan SET soBHYT=? WHERE maBenhNhan=?`,
+        [soThe, maBenhNhan]
       );
 
       await conn.commit();
-      return await InsuranceModel.getByPatient(idBenhNhan);
+      return await InsuranceModel.getByPatient(maBenhNhan);
     } catch (e) {
       try { await conn.rollback(); } catch {}
       if (e?.code === "ER_DUP_ENTRY") {
@@ -42,8 +42,8 @@ export const InsuranceService = {
   },
 
   // PUT: cập nhật thẻ hiện có. Nếu đổi số thẻ, sync BenhNhan.soBHYT
-  async updateByPatient(idBenhNhan, patch) {
-    const existed = await InsuranceModel.getByPatient(idBenhNhan);
+  async updateByPatient(maBenhNhan, patch) {
+    const existed = await InsuranceModel.getByPatient(maBenhNhan);
     if (!existed) throw new AppError(404, "Chưa có thẻ BHYT để cập nhật");
 
     const conn = await pool.getConnection();
@@ -58,9 +58,9 @@ export const InsuranceService = {
         if (patch[k] !== undefined) { sets.push(`${k}=?`); vals.push(patch[k]); }
       }
       if (sets.length) {
-        vals.push(idBenhNhan);
+        vals.push(maBenhNhan);
         await conn.query(
-          `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE idBenhNhan=?`,
+          `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE maBenhNhan=?`,
           vals
         );
       }
@@ -68,13 +68,13 @@ export const InsuranceService = {
       // nếu thay đổi soThe → sync BenhNhan.soBHYT
       if (patch.soThe !== undefined && patch.soThe !== existed.soThe) {
         await conn.query(
-          `UPDATE BenhNhan SET soBHYT=? WHERE idBenhNhan=?`,
-          [patch.soThe, idBenhNhan]
+          `UPDATE BenhNhan SET soBHYT=? WHERE maBenhNhan=?`,
+          [patch.soThe, maBenhNhan]
         );
       }
 
       await conn.commit();
-      return await InsuranceModel.getByPatient(idBenhNhan);
+      return await InsuranceModel.getByPatient(maBenhNhan);
     } catch (e) {
       try { await conn.rollback(); } catch {}
       throw e;
@@ -84,8 +84,8 @@ export const InsuranceService = {
   },
 
   // GET: boolean hasValid
-  async hasValidByPatient(idBenhNhan) {
-    const hasValid = await InsuranceModel.hasValidByPatient(idBenhNhan);
+  async hasValidByPatient(maBenhNhan) {
+    const hasValid = await InsuranceModel.hasValidByPatient(maBenhNhan);
     return { hasValid };
   }
 };

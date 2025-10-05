@@ -5,12 +5,12 @@ import { authGuard } from "../../core/middlewares/auth.guard.js";
 
 const r = Router();
 
-/** Khởi tạo thanh toán (đã có lịch hẹn) */
+/** Khởi tạo thanh toán (đã có lịch hẹn) — body: { maLichHen } */
 r.post("/payments", authGuard(true), PaymentController.create);
 
-/** Lấy đơn + list theo lịch hẹn */
-r.get("/payments/:id", authGuard(true), PaymentController.get);
-r.get("/appointments/:id/payments", authGuard(true), PaymentController.listByAppointment);
+/** Lấy đơn + list theo MÃ lịch hẹn */
+r.get("/payments/:maDonHang", authGuard(true), PaymentController.get);
+r.get("/appointments/:maLichHen/payments", authGuard(true), PaymentController.listByAppointment);
 
 /** Webhook Sepay (public, nhận JSON, xác thực qua ?key=...) */
 r.post(

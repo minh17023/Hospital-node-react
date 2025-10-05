@@ -1,4 +1,3 @@
-// src/pages/Flow/steps/PatientStep.jsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import client from "../../../api/client";
@@ -62,15 +61,15 @@ export default function PatientStep() {
     (async () => {
       try {
         setLoading(true);
-        // hồ sơ (nếu có BE)
-        const me = await client.get("/patients/me").catch(() => null);
+        // hồ sơ (API mới)
+        const me = await client.get("/auth/patient/me").catch(() => null);
         const fresh = me?.data?.patient || cached;
         setPatient(fresh);
         localStorage.setItem("PATIENT_INFO", JSON.stringify(fresh));
 
-        // thẻ BHYT (nếu có)
-        if (fresh?.idBenhNhan) {
-          const bh = await client.get(`/patients/${fresh.idBenhNhan}/bhyt`).catch(() => null);
+        // thẻ BHYT (API mới dùng maBenhNhan)
+        if (fresh?.maBenhNhan) {
+          const bh = await client.get(`/patients/${fresh.maBenhNhan}/bhyt`).catch(() => null);
           const the = extractSingleBhyt(bh?.data) || null;
           setCard(the);
 

@@ -1,4 +1,3 @@
-// backend/src/modules/auth/patient.controller.js
 import { AppError } from "../../../core/http/error.js";
 import {
   signPatientAccessToken,
@@ -19,7 +18,7 @@ export const PatientAuthController = {
 
       const patient = await PatientService.registerFull({ ...req.body, nguoiTao });
 
-      const accessToken = signPatientAccessToken(patient);      // <-- dùng HÀM BỆNH NHÂN
+      const accessToken = signPatientAccessToken(patient);
       const refreshToken = signPatientRefreshToken(patient);
       res.status(201).json({ accessToken, refreshToken, patient });
     } catch (e) { next(e); }
@@ -31,11 +30,10 @@ export const PatientAuthController = {
       const { soCCCD } = req.body || {};
       if (!soCCCD) throw new AppError(400, "Thiếu CCCD");
 
-      // BUG cũ: dùng biến 'cccd' không tồn tại → luôn undefined
       const bn = await PatientModel.findByCCCD(soCCCD);
       if (!bn) throw new AppError(404, "Chưa có hồ sơ, cần đăng ký");
 
-      const accessToken = signPatientAccessToken(bn);           // <-- PATIENT token
+      const accessToken = signPatientAccessToken(bn);
       const refreshToken = signPatientRefreshToken(bn);
 
       res.json({ accessToken, refreshToken, patient: bn });
@@ -45,16 +43,16 @@ export const PatientAuthController = {
   // ME: trả hồ sơ + các thẻ BHYT
   async me(req, res, next) {
     try {
-      const { idBenhNhan, soCCCD } = req.user || {};
-      if (!idBenhNhan && !soCCCD) throw new AppError(401, "Chưa đăng nhập");
+      const { maBenhNhan, soCCCD } = req.user || {};
+      if (!maBenhNhan && !soCCCD) throw new AppError(401, "Chưa đăng nhập");
 
-      const patient = idBenhNhan
-        ? await PatientModel.findById(idBenhNhan)
+      const patient = maBenhNhan
+        ? await PatientModel.findByMa(maBenhNhan)
         : await PatientModel.findByCCCD(soCCCD);
 
       if (!patient) throw new AppError(404, "Không tìm thấy hồ sơ");
 
-      const bhyt = await PatientModel.listBHYT(patient.idBenhNhan);
+      const bhyt = await PatientModel.listBHYT(patient.maBenhNhan);
       const today = new Date().toISOString().slice(0, 10);
       const bhytHienHanh =
         bhyt.find(x => x.soThe === patient.soBHYT) ||

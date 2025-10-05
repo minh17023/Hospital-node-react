@@ -10,13 +10,13 @@ export const ClinicService = {
     const [items, total] = await Promise.all([
       ClinicModel.list({
         q: query.q || null,
-        idChuyenKhoa: query.idChuyenKhoa || null,
+        maChuyenKhoa: query.maChuyenKhoa || null,
         trangThai: query.trangThai ?? null,
         offset, limit
       }),
       ClinicModel.count({
         q: query.q || null,
-        idChuyenKhoa: query.idChuyenKhoa || null,
+        maChuyenKhoa: query.maChuyenKhoa || null,
         trangThai: query.trangThai ?? null
       })
     ]);
@@ -24,9 +24,9 @@ export const ClinicService = {
     return { items, page, limit, total };
   },
 
-  async listBySpecialty(idChuyenKhoa, query) {
+  async listBySpecialty(maChuyenKhoa, query) {
     return ClinicModel.list({
-      idChuyenKhoa,
+      maChuyenKhoa,
       q: query.q || null,
       trangThai: query.trangThai ?? 1,
       offset: 0,
@@ -36,11 +36,10 @@ export const ClinicService = {
 
   async create(payload) {
     if (!payload?.tenPhongKham) throw new AppError(400, "Thiếu tenPhongKham");
-    if (!payload?.idChuyenKhoa) throw new AppError(400, "Thiếu idChuyenKhoa");
-
-    const id = await ClinicModel.create({
+    // maChuyenKhoa có thể null theo DDL, nhưng nếu FE bắt buộc thì validate ở đây
+    const created = await ClinicModel.create({
       tenPhongKham: String(payload.tenPhongKham).slice(0,100),
-      idChuyenKhoa: Number(payload.idChuyenKhoa),
+      maChuyenKhoa: payload.maChuyenKhoa ? String(payload.maChuyenKhoa) : null,
       tang: payload.tang != null ? Number(payload.tang) : null,
       dienTich: payload.dienTich != null ? Number(payload.dienTich) : null,
       sucChua: payload.sucChua != null ? Number(payload.sucChua) : null,
@@ -49,16 +48,16 @@ export const ClinicService = {
       trangThai: payload.trangThai != null ? Number(payload.trangThai) : 1
     });
 
-    return await ClinicModel.findById(id);
+    return created; // đã có maPhongKham
   },
 
-  async update(idPhongKham, patch) {
-    const existed = await ClinicModel.findById(idPhongKham);
+  async update(maPhongKham, patch) {
+    const existed = await ClinicModel.findByMa(maPhongKham);
     if (!existed) throw new AppError(404, "Không tìm thấy phòng khám");
 
-    const changed = await ClinicModel.update(idPhongKham, {
+    const changed = await ClinicModel.update(maPhongKham, {
       tenPhongKham: patch.tenPhongKham?.slice(0,100),
-      idChuyenKhoa: patch.idChuyenKhoa != null ? Number(patch.idChuyenKhoa) : undefined,
+      maChuyenKhoa: patch.maChuyenKhoa != null ? String(patch.maChuyenKhoa) : undefined,
       tang: patch.tang != null ? Number(patch.tang) : undefined,
       dienTich: patch.dienTich != null ? Number(patch.dienTich) : undefined,
       sucChua: patch.sucChua != null ? Number(patch.sucChua) : undefined,
@@ -68,13 +67,13 @@ export const ClinicService = {
     });
 
     if (!changed) throw new AppError(400, "Không có trường hợp lệ để cập nhật");
-    return await ClinicModel.findById(idPhongKham);
+    return await ClinicModel.findByMa(maPhongKham);
   },
 
-  async remove(idPhongKham) {
-    const existed = await ClinicModel.findById(idPhongKham);
+  async remove(maPhongKham) {
+    const existed = await ClinicModel.findByMa(maPhongKham);
     if (!existed) throw new AppError(404, "Không tìm thấy phòng khám");
-    await ClinicModel.remove(idPhongKham);
+    await ClinicModel.remove(maPhongKham);
     return true;
   },
 };

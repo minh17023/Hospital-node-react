@@ -20,15 +20,39 @@ export default function RegisterPatient() {
   const submit = async (payload) => {
     setLoading(true);
     try {
-      // đảm bảo server nhận đúng soCCCD
-      const body = { ...payload, soCCCD: payload.soCCCD || cccd, nguoiTao: payload.nguoiTao || "kiosk" };
+      const soCCCD =
+        (payload?.soCCCD || cccd || "").toString().replace(/\D/g, "").slice(0, 12);
+
+      const body = {
+        ...payload,
+        soCCCD,
+        nguoiTao: (payload?.nguoiTao || "kiosk").toString().slice(0, 50),
+      };
+
       const { data } = await client.post("/auth/patient/register", body);
+
+      // Đảm bảo response hợp lệ theo API mới
+      if (!data?.accessToken || !data?.patient) {
+        throw new Error("RESP_INVALID");
+      }
+
+      // Lưu phiên đăng nhập bệnh nhân
       localStorage.setItem("PATIENT_TOKEN", data.accessToken);
       localStorage.setItem("PATIENT_INFO", JSON.stringify(data.patient));
+      // Không cần giữ CCCD tạm nữa
+      localStorage.removeItem("PENDING_CCCD");
+
+      // Sang bước đăng ký BHYT
       nav("/register-bhyt");
     } catch (e) {
-      alert(e?.response?.data?.message || "Không thể đăng ký");
-    } finally { setLoading(false); }
+      const msg =
+        e?.response?.data?.message ||
+        (e?.message === "RESP_INVALID" ? "Phản hồi không hợp lệ" : null) ||
+        "Không thể đăng ký";
+      alert(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
