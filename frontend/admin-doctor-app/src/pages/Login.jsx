@@ -60,11 +60,11 @@ export default function Login() {
                 <button className="btn btn-primary w-100" disabled={loading}>
                   {loading ? "Đang đăng nhập…" : "Đăng nhập"}
                 </button>
-                {mode === "DOCTOR" && (
+                {/* {mode === "DOCTOR" && (
                 <div className="text-center mt-3">
                     <a href="/register-doctor">Chưa có tài khoản? Đăng ký bác sĩ</a>
                 </div>
-                )}
+                )} */}
               </form>
 
             </div>
