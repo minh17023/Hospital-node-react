@@ -53,17 +53,18 @@ export const AppointmentController = {
   },
 
   /* ===== DOCTOR & ADMIN ===== */
-  async list(req, res, next) {
-    try {
-      const items = await AppointmentService.list({
-        maBacSi: req.query.maBacSi ? String(req.query.maBacSi) : null,
-        ngay: req.query.ngay || null,
-        limit: req.query.limit ? Number(req.query.limit) : 50,
-        offset: req.query.offset ? Number(req.query.offset) : 0
-      });
-      res.json({ items });
-    } catch (e) { next(e); }
-  },
+async list(req, res, next) {
+  try {
+    const items = await AppointmentService.list({
+      maBacSi: req.query.maBacSi ? String(req.query.maBacSi) : null,
+      ngay: req.query.ngay || null,
+      status: req.query.status ?? null,    // NEW: có thể truyền -1/1/2/3/5 hoặc để trống
+      limit: req.query.limit ? Number(req.query.limit) : 50,
+      offset: req.query.offset ? Number(req.query.offset) : 0
+    });
+    res.json({ items });
+  } catch (e) { next(e); }
+},
 
   async updateStatus(req, res, next) {
     try {
@@ -94,4 +95,5 @@ export const AppointmentController = {
       res.json({ cancelled: true });
     } catch (e) { next(e); }
   }
+  
 };

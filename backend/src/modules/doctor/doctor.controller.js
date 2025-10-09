@@ -53,4 +53,13 @@ export const DoctorController = {
       res.json({ ok: true });
     } catch (e) { next(e); }
   },
+
+   async getByUser(req, res, next) {
+    try {
+      const maUser = String(req.params.maUser || "");
+      const item = await DoctorService.getByUser(maUser);
+      if (!item) return res.status(404).json({ message: "Không tìm thấy hồ sơ bác sĩ theo maUser" });
+      res.json(item);
+    } catch (e) { next(e); }
+  },
 };

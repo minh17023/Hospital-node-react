@@ -169,4 +169,18 @@ export const DoctorModel = {
     const [rs] = await pool.query(`DELETE FROM ${T} WHERE maBacSi = ?`, [maBacSi]);
     return rs.affectedRows || 0;
   },
+ 
+  async findByUser(maUser) {
+    const [rows] = await pool.query(
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+         FROM ${T} b
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+         JOIN users      u  ON u.mabacsi     = b.maBacSi
+        WHERE u.mauser = ?
+        LIMIT 1`,
+      [String(maUser)]
+    );
+    return rows[0] || null;
+  },
 };
