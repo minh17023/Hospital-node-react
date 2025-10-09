@@ -3,7 +3,7 @@ import { pool } from "../../config/db.js";
 export const PatientModel = {
   async findByCCCD(soCCCD) {
     const [rows] = await pool.query(
-      "SELECT * FROM BenhNhan WHERE soCCCD=? LIMIT 1",
+      "SELECT * FROM benhnhan WHERE soCCCD=? LIMIT 1",
       [soCCCD]
     );
     return rows[0] || null;
@@ -11,21 +11,21 @@ export const PatientModel = {
 
   async findByMa(maBenhNhan) {
     const [rows] = await pool.query(
-      "SELECT * FROM BenhNhan WHERE maBenhNhan=? LIMIT 1",
+      "SELECT * FROM benhnhan WHERE maBenhNhan=? LIMIT 1",
       [maBenhNhan]
     );
     return rows[0] || null;
   },
-  
+
   async list({
     q = "",
-    trangThai = null,        // 1/0 hoặc null
-    from = null,             // lọc theo ngày tạo >= from (YYYY-MM-DD)
-    to = null,               // lọc theo ngày tạo <= to   (YYYY-MM-DD)
+    trangThai = null,
+    from = null,
+    to = null,
     limit = 50,
     offset = 0,
-    orderBy = "maBenhNhan",  // cột sắp xếp
-    order = "DESC",          // ASC | DESC
+    orderBy = "maBenhNhan",
+    order = "DESC",
   }) {
     const conds = [];
     const vals  = [];
@@ -46,19 +46,18 @@ export const PatientModel = {
 
     // Đếm tổng
     const [cnt] = await pool.query(
-      `SELECT COUNT(*) AS n FROM BenhNhan ${where}`,
+      `SELECT COUNT(*) AS n FROM benhnhan ${where}`,
       vals
     );
     const total = Number(cnt[0]?.n || 0);
 
-    // Trang dữ liệu
     const safeOrderBy = ["maBenhNhan","ngayTao","hoTen"].includes(orderBy) ? orderBy : "maBenhNhan";
     const safeOrder   = String(order).toUpperCase() === "ASC" ? "ASC" : "DESC";
 
     const [rows] = await pool.query(
       `SELECT maBenhNhan, hoTen, ngaySinh, gioiTinh, soCCCD, soBHYT, diaChi, soDienThoai, email,
               ngheNghiep, tinhTrangHonNhan, nguoiLienHe, sdtLienHe, ngayTao, trangThai
-         FROM BenhNhan
+         FROM benhnhan
          ${where}
          ORDER BY ${safeOrderBy} ${safeOrder}
          LIMIT ? OFFSET ?`,
@@ -80,7 +79,7 @@ export const PatientModel = {
 
     // Trigger trong DB sẽ tự sinh maBenhNhan
     await conn.query(
-      `INSERT INTO BenhNhan
+      `INSERT INTO benhnhan
        (hoTen, ngaySinh, gioiTinh, soCCCD, soBHYT, diaChi, soDienThoai, email,
         ngheNghiep, tinhTrangHonNhan, nguoiLienHe, sdtLienHe, ngayTao, nguoiTao, trangThai)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
@@ -90,7 +89,6 @@ export const PatientModel = {
       ]
     );
 
-    // soCCCD là UNIQUE → lấy lại full record (có maBenhNhan)
     return await this.findByCCCD(soCCCD);
   },
 
@@ -113,7 +111,7 @@ export const PatientModel = {
 
     values.push(maBenhNhan);
     const [rs] = await pool.query(
-      `UPDATE BenhNhan SET ${fields.join(", ")} WHERE maBenhNhan=?`,
+      `UPDATE benhnhan SET ${fields.join(", ")} WHERE maBenhNhan=?`,
       values
     );
     return rs.affectedRows;
@@ -121,7 +119,7 @@ export const PatientModel = {
 
   async remove(maBenhNhan) {
     const [rs] = await pool.query(
-      "DELETE FROM BenhNhan WHERE maBenhNhan=?",
+      "DELETE FROM benhnhan WHERE maBenhNhan=?",
       [maBenhNhan]
     );
     return rs;
@@ -129,7 +127,7 @@ export const PatientModel = {
 
   async listBHYT(maBenhNhan) {
     const [rows] = await pool.query(
-      "SELECT * FROM BaoHiemYTe WHERE maBenhNhan=? ORDER BY maBHYT DESC",
+      "SELECT * FROM baohiemyte WHERE maBenhNhan=? ORDER BY maBHYT DESC",
       [maBenhNhan]
     );
     return rows;

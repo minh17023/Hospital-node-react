@@ -1,14 +1,14 @@
 import { pool } from "../../config/db.js";
 
-const T_ORDER = "DonHang";
-const T_EVENT = "WebhookSepayEvent";
+const T_ORDER = "donhang";
+const T_EVENT = "webhooksepayevent";
 
 export const PaymentModel = {
   async getAppointmentInfo(maLichHen, conn = pool) {
     const [rows] = await conn.query(
       `SELECT l.*, b.soCCCD
-         FROM LichHen l
-         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+         FROM lichhen l
+         LEFT JOIN benhnhan b ON b.maBenhNhan = l.maBenhNhan
         WHERE l.maLichHen=? LIMIT 1`,
       [maLichHen]
     );
@@ -39,8 +39,8 @@ export const PaymentModel = {
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
-         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+         JOIN lichhen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN benhnhan b ON b.maBenhNhan = l.maBenhNhan
         WHERE d.maDonHang=? LIMIT 1`,
       [maDonHang]
     );
@@ -53,8 +53,8 @@ export const PaymentModel = {
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
-         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+         JOIN lichhen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN benhnhan b ON b.maBenhNhan = l.maBenhNhan
         WHERE d.maLichHen=?
         ORDER BY d.createdAt DESC, d.maDonHang DESC`,
       [maLichHen]
@@ -79,8 +79,8 @@ export const PaymentModel = {
               l.*, l.trangThai AS lhTrangThai,
               b.soCCCD
          FROM ${T_ORDER} d
-         JOIN LichHen   l ON l.maLichHen   = d.maLichHen
-         LEFT JOIN BenhNhan b ON b.maBenhNhan = l.maBenhNhan
+         JOIN lichhen   l ON l.maLichHen   = d.maLichHen
+         LEFT JOIN benhnhan b ON b.maBenhNhan = l.maBenhNhan
         WHERE d.maLichHen=?
         ORDER BY d.createdAt DESC, d.maDonHang DESC
         LIMIT 1`,

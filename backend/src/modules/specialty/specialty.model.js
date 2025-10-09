@@ -13,8 +13,8 @@ export const SpecialtyModel = {
         COUNT(bs.maBacSi)                    AS soBacSi,
         MIN(bs.phiKham)                      AS phiKham,
         ROUND(AVG(bs.thoiGianKhamBinhQuan))  AS thoiGianKhamBinhQuan
-      FROM ChuyenKhoa ck
-      LEFT JOIN BacSi bs
+      FROM chuyenkhoa ck
+      LEFT JOIN bacsi bs
         ON bs.maChuyenKhoa = ck.maChuyenKhoa
        AND (bs.trangThai IS NULL OR bs.trangThai = 1)
       WHERE (ck.trangThai IS NULL OR ck.trangThai = 1)
@@ -36,8 +36,8 @@ export const SpecialtyModel = {
         COUNT(bs.maBacSi)                    AS soBacSi,
         MIN(bs.phiKham)                      AS phiKham,
         ROUND(AVG(bs.thoiGianKhamBinhQuan))  AS thoiGianKhamBinhQuan
-      FROM ChuyenKhoa ck
-      LEFT JOIN BacSi bs
+      FROM chuyenkhoa ck
+      LEFT JOIN bacsi bs
         ON bs.maChuyenKhoa = ck.maChuyenKhoa
        AND (bs.trangThai IS NULL OR bs.trangThai = 1)
       WHERE ck.maChuyenKhoa = ?
@@ -53,14 +53,14 @@ export const SpecialtyModel = {
 
     // Trigger DB sẽ sinh maChuyenKhoa
     await pool.query(
-      `INSERT INTO ChuyenKhoa (tenChuyenKhoa, moTa, truongKhoa, phongKham, trangThai)
+      `INSERT INTO chuyenkhoa (tenChuyenKhoa, moTa, truongKhoa, phongKham, trangThai)
        VALUES (?,?,?,?,?)`,
       [tenChuyenKhoa, moTa, truongKhoa, phongKham, trangThai]
     );
 
     // Lấy lại record theo tên (giả định tên không “spam” cùng lúc)
     const [rows] = await pool.query(
-      `SELECT * FROM ChuyenKhoa
+      `SELECT * FROM chuyenkhoa
         WHERE tenChuyenKhoa = ?
         ORDER BY maChuyenKhoa DESC
         LIMIT 1`,
@@ -71,7 +71,7 @@ export const SpecialtyModel = {
 
   async getByMa(maChuyenKhoa) {
     const [rows] = await pool.query(
-      `SELECT * FROM ChuyenKhoa WHERE maChuyenKhoa=? LIMIT 1`,
+      `SELECT * FROM chuyenkhoa WHERE maChuyenKhoa=? LIMIT 1`,
       [maChuyenKhoa]
     );
     return rows[0] || null;
@@ -86,7 +86,7 @@ export const SpecialtyModel = {
     if (!sets.length) return 0;
     vals.push(maChuyenKhoa);
     const [rs] = await pool.query(
-      `UPDATE ChuyenKhoa SET ${sets.join(", ")} WHERE maChuyenKhoa=?`,
+      `UPDATE chuyenkhoa SET ${sets.join(", ")} WHERE maChuyenKhoa=?`,
       vals
     );
     return rs.affectedRows;
@@ -94,7 +94,7 @@ export const SpecialtyModel = {
 
   async remove(maChuyenKhoa) {
     const [rs] = await pool.query(
-      `DELETE FROM ChuyenKhoa WHERE maChuyenKhoa=?`,
+      `DELETE FROM chuyenkhoa WHERE maChuyenKhoa=?`,
       [maChuyenKhoa]
     );
     return rs.affectedRows;

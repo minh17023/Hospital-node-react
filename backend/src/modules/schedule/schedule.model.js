@@ -1,6 +1,6 @@
 import { pool } from "../../config/db.js";
 
-const T = "LichLamViec";
+const T = "lichlamviec";
 
 /* helper */
 const q = async (sql, params = []) => {
@@ -46,8 +46,8 @@ export async function findShiftsByDoctorDate(maBacSi, ngayLamViec) {
       llv.ngayTao,
       llv.nguoiTao
     FROM ${T} llv
-    JOIN PhongKham pk  ON pk.maPhongKham  = llv.maPhongKham
-    JOIN CaLamViec clv ON clv.maCaLamViec = llv.maCaLamViec
+    JOIN phongkham pk  ON pk.maPhongKham  = llv.maPhongKham
+    JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
     WHERE llv.maBacSi = ?
       AND llv.ngayLamViec = ?
       AND llv.trangThaiLamViec = 1
@@ -80,9 +80,9 @@ export async function listWorkshifts({
 
   const baseSelect = `
     FROM ${T} llv
-    JOIN BacSi b       ON b.maBacSi       = llv.maBacSi
-    JOIN PhongKham pk  ON pk.maPhongKham  = llv.maPhongKham
-    JOIN CaLamViec clv ON clv.maCaLamViec = llv.maCaLamViec
+    JOIN bacsi b       ON b.maBacSi       = llv.maBacSi
+    JOIN phongkham pk  ON pk.maPhongKham  = llv.maPhongKham
+    JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
     ${where}
   `;
 

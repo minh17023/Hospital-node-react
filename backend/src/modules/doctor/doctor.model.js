@@ -1,13 +1,30 @@
 import { pool } from "../../config/db.js";
 
-const T = "BacSi";
+const T = "bacsi";
 
 export const DoctorModel = {
+  async _nvExists(maNhanVien) {
+    const [r] = await pool.query(
+      "SELECT 1 FROM nhanvien WHERE maNhanVien=? LIMIT 1",
+      [maNhanVien]
+    );
+    return !!r[0];
+  },
+
+  async _nvUsed(maNhanVien) {
+    const [r] = await pool.query(
+      `SELECT 1 FROM ${T} WHERE maNhanVien=? LIMIT 1`,
+      [maNhanVien]
+    );
+    return !!r[0];
+  },
+
   async create(
     {
-      maUser,
-      tenBacSi,
+      maNhanVien,
       maChuyenKhoa,
+      maHocVi = null,
+      maHocHam = null,
       bangCap = null,
       chungChi = null,
       kinhNghiem = 0,
@@ -22,55 +39,66 @@ export const DoctorModel = {
     },
     conn = pool
   ) {
-    if (!maUser || !maChuyenKhoa) {
-      throw Object.assign(new Error("Missing maUser/maChuyenKhoa"), { code: "VALIDATION" });
+    if (!maNhanVien || !maChuyenKhoa) {
+      throw Object.assign(new Error("Missing maNhanVien/maChuyenKhoa"), { code: "VALIDATION" });
     }
 
-    // Trigger trong DB sẽ sinh maBacSi
+    if (!(await this._nvExists(maNhanVien))) {
+      throw Object.assign(new Error("maNhanVien không tồn tại"), { code: "NOT_FOUND" });
+    }
+    if (await this._nvUsed(maNhanVien)) {
+      throw Object.assign(new Error("maNhanVien đã gắn với một bác sĩ khác"), { code: "DUPLICATE" });
+    }
+
+    // Trigger DB sẽ sinh maBacSi
     await conn.query(
       `INSERT INTO ${T}
-        (maUser, tenBacSi, maChuyenKhoa, bangCap, chungChi, kinhNghiem,
+        (maNhanVien, maChuyenKhoa, maHocVi, maHocHam, bangCap, chungChi, kinhNghiem,
          chuyenMonChinh, chuyenMonPhu, soLuongBenhNhanToiDa,
          thoiGianKhamBinhQuan, ngayBatDauCongTac, phiKham,
          ghiChu, trangThai)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        maUser, tenBacSi, maChuyenKhoa,
-        bangCap, chungChi, kinhNghiem,
+        maNhanVien, maChuyenKhoa, maHocVi, maHocHam, bangCap, chungChi, kinhNghiem,
         chuyenMonChinh, chuyenMonPhu, soLuongBenhNhanToiDa,
-        thoiGianKhamBinhQuan, ngayBatDauCongTac, phiKham,
-        ghiChu, trangThai,
+        thoiGianKhamBinhQuan, ngayBatDauCongTac, phiKham, ghiChu, trangThai,
       ]
     );
 
-    // Lấy lại bản ghi vừa tạo theo (maUser, maChuyenKhoa, tenBacSi)
+    // Lấy lại bản ghi vừa tạo – join nhanvien để có tên hiển thị
     const [rows] = await conn.query(
-      `SELECT b.*, ck.tenChuyenKhoa
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
          FROM ${T} b
-         LEFT JOIN ChuyenKhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
-        WHERE b.maUser=? AND b.maChuyenKhoa=? AND b.tenBacSi=?
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+        WHERE b.maNhanVien=? AND b.maChuyenKhoa=?
         ORDER BY b.maBacSi DESC
         LIMIT 1`,
-      [maUser, maChuyenKhoa, tenBacSi]
+      [maNhanVien, maChuyenKhoa]
     );
     return rows[0] || null;
   },
 
   async findByMa(maBacSi) {
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
          FROM ${T} b
-         LEFT JOIN ChuyenKhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         WHERE b.maBacSi = ? LIMIT 1`,
       [maBacSi]
     );
     return rows[0] || null;
   },
 
-  async findByUser(maUser) {
+  async findByNhanVien(maNhanVien) {
     const [rows] = await pool.query(
-      `SELECT * FROM ${T} WHERE maUser = ? LIMIT 1`,
-      [maUser]
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+         FROM ${T} b
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+        WHERE b.maNhanVien = ? LIMIT 1`,
+      [maNhanVien]
     );
     return rows[0] || null;
   },
@@ -82,7 +110,7 @@ export const DoctorModel = {
     if (maChuyenKhoa) { conds.push("b.maChuyenKhoa = ?"); vals.push(String(maChuyenKhoa)); }
     if (trangThai !== null && trangThai !== undefined) { conds.push("b.trangThai = ?"); vals.push(Number(trangThai)); }
     if (q) {
-      conds.push("(b.tenBacSi LIKE ? OR b.chuyenMonChinh LIKE ? OR b.chuyenMonPhu LIKE ? OR ck.tenChuyenKhoa LIKE ?)");
+      conds.push("(nv.hoTen LIKE ? OR b.chuyenMonChinh LIKE ? OR b.chuyenMonPhu LIKE ? OR ck.tenChuyenKhoa LIKE ?)");
       vals.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
     if (feeMin != null) { conds.push("b.phiKham >= ?"); vals.push(Number(feeMin)); }
@@ -90,9 +118,10 @@ export const DoctorModel = {
 
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
          FROM ${T} b
-         LEFT JOIN ChuyenKhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         ${where}
         ORDER BY b.maBacSi DESC
         LIMIT ? OFFSET ?`,
@@ -107,9 +136,10 @@ export const DoctorModel = {
     if (trangThai !== null && trangThai !== undefined) { conds.push("b.trangThai = ?"); vals.push(Number(trangThai)); }
     const where = `WHERE ${conds.join(" AND ")}`;
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa
-         FROM BacSi b
-         LEFT JOIN ChuyenKhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
+      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+         FROM ${T} b
+         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
+         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         ${where}
         ORDER BY b.maBacSi DESC
         LIMIT ? OFFSET ?`,
@@ -120,7 +150,8 @@ export const DoctorModel = {
 
   async update(maBacSi, patch) {
     const allow = [
-      "maChuyenKhoa", "tenBacSi",
+      "maChuyenKhoa",
+      "maHocVi", "maHocHam",
       "bangCap", "chungChi", "kinhNghiem",
       "chuyenMonChinh", "chuyenMonPhu", "soLuongBenhNhanToiDa",
       "thoiGianKhamBinhQuan", "ngayBatDauCongTac", "phiKham",

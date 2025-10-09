@@ -8,7 +8,7 @@ export const InsuranceService = {
     return InsuranceModel.getByPatient(maBenhNhan);
   },
 
-  // POST: tạo mới (nếu đã có → 409). Sync BenhNhan.soBHYT
+  // POST: tạo mới (nếu đã có → 409). Sync benhnhan.soBHYT
   async createOne(maBenhNhan, { soThe, denNgay, trangThai = 1 }) {
     const existed = await InsuranceModel.getByPatient(maBenhNhan);
     if (existed) throw new AppError(409, "Bệnh nhân đã có thẻ BHYT");
@@ -18,13 +18,13 @@ export const InsuranceService = {
       await conn.beginTransaction();
 
       await conn.query(
-        `INSERT INTO BaoHiemYTe (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
+        `INSERT INTO baohiemyte (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
          VALUES (?, ?, ?, ?, NOW())`,
         [maBenhNhan, soThe, denNgay, trangThai]
       );
 
       await conn.query(
-        `UPDATE BenhNhan SET soBHYT=? WHERE maBenhNhan=?`,
+        `UPDATE benhnhan SET soBHYT=? WHERE maBenhNhan=?`,
         [soThe, maBenhNhan]
       );
 
@@ -41,7 +41,7 @@ export const InsuranceService = {
     }
   },
 
-  // PUT: cập nhật thẻ hiện có. Nếu đổi số thẻ, sync BenhNhan.soBHYT
+  // PUT: cập nhật thẻ hiện có. Nếu đổi số thẻ, sync benhnhan.soBHYT
   async updateByPatient(maBenhNhan, patch) {
     const existed = await InsuranceModel.getByPatient(maBenhNhan);
     if (!existed) throw new AppError(404, "Chưa có thẻ BHYT để cập nhật");
@@ -60,15 +60,15 @@ export const InsuranceService = {
       if (sets.length) {
         vals.push(maBenhNhan);
         await conn.query(
-          `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE maBenhNhan=?`,
+          `UPDATE baohiemyte SET ${sets.join(", ")} WHERE maBenhNhan=?`,
           vals
         );
       }
 
-      // nếu thay đổi soThe → sync BenhNhan.soBHYT
+      // nếu thay đổi soThe → sync benhnhan.soBHYT
       if (patch.soThe !== undefined && patch.soThe !== existed.soThe) {
         await conn.query(
-          `UPDATE BenhNhan SET soBHYT=? WHERE maBenhNhan=?`,
+          `UPDATE benhnhan SET soBHYT=? WHERE maBenhNhan=?`,
           [patch.soThe, maBenhNhan]
         );
       }

@@ -3,12 +3,17 @@ import { AppError } from "../../core/http/error.js";
 
 export const DoctorService = {
   async create(payload) {
-    // kiểm tra các field bắt buộc
-    for (const k of ["maUser", "maChuyenKhoa", "tenBacSi"]) {
+    for (const k of ["maNhanVien", "maChuyenKhoa"]) {
       if (!payload?.[k]) throw new AppError(400, `Thiếu ${k}`);
     }
-    const created = await DoctorModel.create(payload);
-    return created; // đã có maBacSi trong object trả về
+    try {
+      return await DoctorModel.create(payload);
+    } catch (e) {
+      if (e.code === "VALIDATION") throw new AppError(400, e.message);
+      if (e.code === "NOT_FOUND") throw new AppError(404, e.message);
+      if (e.code === "DUPLICATE") throw new AppError(409, e.message);
+      throw e;
+    }
   },
 
   getByMa: (ma) => DoctorModel.findByMa(ma),
@@ -30,7 +35,7 @@ export const DoctorService = {
     const changed = await DoctorModel.update(maBacSi, patch);
     if (!changed) throw new AppError(400, "Không có trường hợp lệ để cập nhật");
     return await DoctorModel.findByMa(maBacSi);
-    },
+  },
 
   async remove(maBacSi) {
     const ok = await DoctorModel.remove(maBacSi);

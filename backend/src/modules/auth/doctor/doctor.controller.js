@@ -1,73 +1,90 @@
 import { UsersService } from "../../users/users.service.js";
-import { hash, compare } from "../../../core/utils/passwords.js";
-import { signAccessToken, signRefreshToken } from "../../../core/utils/jwt.js";
+import { hash, compare } from "../../../core/utils/passwords.js";   
 import { AppError } from "../../../core/http/error.js";
+import { signAccessToken, signRefreshToken } from "../../../core/utils/jwt.js"; 
+import { pool } from "../../../config/db.js";                   
 
 const SALT = 10;
 
-export const DoctorAuthController = {
-  // Đăng ký: tạo Users(vaiTro=2) + BacSi(maUser) theo service (transaction)
-  async register(req, res, next) {
+/* ========== ADMIN: tạo user cho bác sĩ đã có sẵn (giữ nguyên) ========== */
+export const AdminDoctorUserController = {
+  async registerDoctorUser(req, res, next) {
     try {
-      const {
-        tenDangNhap, matKhau, hoTen, soDienThoai=null, email=null,
-        maChuyenKhoa, // ✔ dùng mã
-        ...profile
-      } = req.body || {};
-      if (!tenDangNhap || !matKhau || !hoTen) throw new AppError(400, "Thiếu hoTen/tenDangNhap/matKhau");
-      if (!maChuyenKhoa) throw new AppError(400, "Thiếu maChuyenKhoa");
+      const { tenDangNhap, matKhau, email = null, maBacSi } = req.body || {};
+      if (!tenDangNhap || !matKhau || !maBacSi) {
+        throw new AppError(422, "Thiếu tenDangNhap/matKhau/maBacSi");
+      }
 
       await UsersService.ensureUsernameFree(tenDangNhap);
-      const matKhauHash = await hash(matKhau, SALT);
+      await UsersService.ensureEmailFree(email);
 
-      const createdUser = await UsersService.createDoctorWithProfile({
-        tenDangNhap, matKhauHash, hoTen, soDienThoai, email, maChuyenKhoa, ...profile
+      const matKhauHash = await hash(matKhau, SALT);
+      const created = await UsersService.createUserForExistingDoctor({
+        tenDangNhap,
+        matKhauHash,
+        email,
+        maBacSi,
       });
 
-      // Lấy lại user theo mã (nếu cần thêm field)
-      const user = await UsersService.findById(createdUser.maUser);
-      const doctor = await DoctorModel.findByUser(user.maUser);
-      
-      const accessToken = signAccessToken(user);
-      const refreshToken = signRefreshToken(user);
-
       res.status(201).json({
-        accessToken,
-        refreshToken,
         user: {
-          maUser: user.maUser,
-          tenDangNhap: user.tenDangNhap,
-          hoTen: user.hoTen,
-          vaiTro: user.vaiTro
-        }
+          maUser: created.maUser,
+          tenDangNhap: created.tenDangNhap,
+          email: created.email,
+          vaiTro: created.vaiTro ?? 2,
+          maBacSi,
+        },
       });
     } catch (e) { next(e); }
   },
+};
 
-  // Đăng nhập
+/* ========== DOCTOR: đăng nhập (đã fix) ========== */
+export const DoctorAuthController = {
   async login(req, res, next) {
     try {
       const { tenDangNhap, matKhau } = req.body || {};
       if (!tenDangNhap || !matKhau) throw new AppError(400, "Thiếu username/password");
 
+      // 1) Tìm user
       const user = await UsersService.findByUsername(tenDangNhap);
-      if (!user || user.vaiTro !== 2 || user.trangThai !== 1)
-        throw new AppError(401, "Không có quyền DOCTOR hoặc bị khóa");
+      if (!user) throw new AppError(401, "Sai thông tin đăng nhập");
 
+      // 2) Ràng buộc vai trò & trạng thái
+      if (Number(user.vaiTro) !== 2) throw new AppError(401, "Không có quyền DOCTOR");
+      if (Number(user.trangThai) !== 1) throw new AppError(401, "Tài khoản đã bị khóa");
+
+      // 3) So khớp mật khẩu
       const ok = await compare(matKhau, user.matKhauHash);
       if (!ok) throw new AppError(401, "Sai thông tin đăng nhập");
 
-      const accessToken = signAccessToken(user);
+      // 4) Lấy họ tên từ bảng nhanvien nếu user đã link maBacSi
+      let hoTen = null;
+      if (user.maBacSi) {
+        const [rows] = await pool.query(
+          `SELECT nv.hoTen
+             FROM bacsi b
+             JOIN nhanvien nv ON nv.maNhanVien = b.maNhanVien
+            WHERE b.maBacSi=? LIMIT 1`,
+          [user.maBacSi]
+        );
+        hoTen = rows[0]?.hoTen ?? null;
+      }
+
+      // 5) JWT
+      const accessToken  = signAccessToken(user);
       const refreshToken = signRefreshToken(user);
 
+      // 6) Response
       res.json({
         accessToken,
         refreshToken,
         user: {
-          maUser: user.maUser,
-          hoTen: user.hoTen,
-          vaiTro: user.vaiTro
-        }
+          maUser:  user.maUser,
+          hoTen,
+          vaiTro:  user.vaiTro,
+          maBacSi: user.maBacSi ?? null,
+        },
       });
     } catch (e) { next(e); }
   }

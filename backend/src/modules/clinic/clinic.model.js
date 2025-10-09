@@ -3,7 +3,7 @@ import { pool } from "../../config/db.js";
 export const ClinicModel = {
   async findByMa(maPhongKham) {
     const [rows] = await pool.query(
-      `SELECT * FROM PhongKham WHERE maPhongKham=? LIMIT 1`,
+      `SELECT * FROM phongkham WHERE maPhongKham=? LIMIT 1`,
       [maPhongKham]
     );
     return rows[0] || null;
@@ -22,7 +22,7 @@ export const ClinicModel = {
     const sqlWhere = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const sql = `
       SELECT *
-      FROM PhongKham
+      FROM phongkham
       ${sqlWhere}
       ORDER BY maPhongKham DESC
       LIMIT ?, ?`;
@@ -41,7 +41,7 @@ export const ClinicModel = {
       where.push(`trangThai=?`); params.push(Number(trangThai));
     }
     const sqlWhere = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    const [rows] = await pool.query(`SELECT COUNT(*) as total FROM PhongKham ${sqlWhere}`, params);
+    const [rows] = await pool.query(`SELECT COUNT(*) as total FROM phongkham ${sqlWhere}`, params);
     return rows[0]?.total ?? 0;
   },
 
@@ -54,7 +54,7 @@ export const ClinicModel = {
 
     // Trigger sẽ sinh maPhongKham
     await pool.query(
-      `INSERT INTO PhongKham
+      `INSERT INTO phongkham
         (tenPhongKham, maChuyenKhoa, tang, dienTich, sucChua, trangBi, ghiChu, trangThai)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -66,7 +66,7 @@ export const ClinicModel = {
 
     // Lấy lại bản ghi mới nhất theo tên (giả định tạo không trùng tên đồng thời)
     const [rows] = await pool.query(
-      `SELECT * FROM PhongKham
+      `SELECT * FROM phongkham
        WHERE tenPhongKham=? 
        ORDER BY maPhongKham DESC
        LIMIT 1`,
@@ -88,7 +88,7 @@ export const ClinicModel = {
     if (!fields.length) return 0;
     values.push(maPhongKham);
     const [rs] = await pool.query(
-      `UPDATE PhongKham SET ${fields.join(", ")} WHERE maPhongKham=?`,
+      `UPDATE phongkham SET ${fields.join(", ")} WHERE maPhongKham=?`,
       values
     );
     return rs.affectedRows;
@@ -96,7 +96,7 @@ export const ClinicModel = {
 
   async remove(maPhongKham) {
     const [rs] = await pool.query(
-      `DELETE FROM PhongKham WHERE maPhongKham=?`,
+      `DELETE FROM phongkham WHERE maPhongKham=?`,
       [maPhongKham]
     );
     return rs.affectedRows;

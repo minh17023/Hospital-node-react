@@ -4,7 +4,7 @@ export const InsuranceModel = {
   // Lấy thẻ BHYT (1-1 theo bệnh nhân)
   async getByPatient(maBenhNhan) {
     const [rows] = await pool.query(
-      `SELECT * FROM BaoHiemYTe WHERE maBenhNhan=? LIMIT 1`,
+      `SELECT * FROM baohiemyte WHERE maBenhNhan=? LIMIT 1`,
       [maBenhNhan]
     );
     return rows[0] || null;
@@ -13,7 +13,7 @@ export const InsuranceModel = {
   // Tạo thẻ mới (DB sẽ tự sinh maBHYT)
   async createOne({ maBenhNhan, soThe, denNgay, trangThai = 1 }) {
     await pool.query(
-      `INSERT INTO BaoHiemYTe (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
+      `INSERT INTO baohiemyte (maBenhNhan, soThe, denNgay, trangThai, ngayTao)
        VALUES (?, ?, ?, ?, NOW())`,
       [maBenhNhan, soThe, denNgay, trangThai]
     );
@@ -32,7 +32,7 @@ export const InsuranceModel = {
     if (!sets.length) return 0;
     vals.push(maBenhNhan);
     const [rs] = await pool.query(
-      `UPDATE BaoHiemYTe SET ${sets.join(", ")} WHERE maBenhNhan=?`,
+      `UPDATE baohiemyte SET ${sets.join(", ")} WHERE maBenhNhan=?`,
       vals
     );
     return rs.affectedRows;
@@ -42,7 +42,7 @@ export const InsuranceModel = {
   async hasValidByPatient(maBenhNhan) {
     const [rows] = await pool.query(
       `SELECT 1
-         FROM BaoHiemYTe
+         FROM baohiemyte
         WHERE maBenhNhan=?
           AND trangThai=1
           AND DATE(denNgay) >= CURDATE()

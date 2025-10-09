@@ -16,7 +16,7 @@ export const WorkshiftModel = {
 
     const sql =
       `SELECT maCaLamViec, tenCaLamViec, gioVao, gioRa, trangThai, moTa
-         FROM CaLamViec
+         FROM calamviec
         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
         ORDER BY gioVao ASC
         LIMIT ? OFFSET ?`;
@@ -36,7 +36,7 @@ export const WorkshiftModel = {
       params.push(Number(status));
     }
     const [rows] = await pool.query(
-      `SELECT COUNT(*) n FROM CaLamViec ${where.length ? `WHERE ${where.join(" AND ")}` : ""}`,
+      `SELECT COUNT(*) n FROM calamviec ${where.length ? `WHERE ${where.join(" AND ")}` : ""}`,
       params
     );
     return Number(rows[0]?.n || 0);
@@ -45,7 +45,7 @@ export const WorkshiftModel = {
   async get(ma) {
     const [rows] = await pool.query(
       `SELECT maCaLamViec, tenCaLamViec, gioVao, gioRa, trangThai, moTa
-         FROM CaLamViec WHERE maCaLamViec=? LIMIT 1`,
+         FROM calamviec WHERE maCaLamViec=? LIMIT 1`,
       [ma]
     );
     return rows[0] || null;
@@ -53,13 +53,13 @@ export const WorkshiftModel = {
 
   async create({ tenCaLamViec, gioVao, gioRa, trangThai = 1, moTa = null }) {
     await pool.query(
-      `INSERT INTO CaLamViec (tenCaLamViec, gioVao, gioRa, trangThai, moTa)
+      `INSERT INTO calamviec (tenCaLamViec, gioVao, gioRa, trangThai, moTa)
        VALUES (?, ?, ?, ?, ?)`,
       [tenCaLamViec, gioVao, gioRa, Number(trangThai), moTa]
     );
     // lấy mã vừa sinh theo khóa tự nhiên
     const [rows] = await pool.query(
-      `SELECT maCaLamViec FROM CaLamViec
+      `SELECT maCaLamViec FROM calamviec
         WHERE tenCaLamViec=? AND gioVao=? AND gioRa=?
         ORDER BY maCaLamViec DESC LIMIT 1`,
       [tenCaLamViec, gioVao, gioRa]
@@ -78,7 +78,7 @@ export const WorkshiftModel = {
 
     params.push(ma);
     const [rs] = await pool.query(
-      `UPDATE CaLamViec SET ${fields.join(", ")} WHERE maCaLamViec=?`,
+      `UPDATE calamviec SET ${fields.join(", ")} WHERE maCaLamViec=?`,
       params
     );
     return rs.affectedRows || 0;
@@ -86,13 +86,13 @@ export const WorkshiftModel = {
 
   async isReferenced(ma) {
     const [rows] = await pool.query(
-      `SELECT 1 FROM LichLamViec WHERE maCaLamViec=? LIMIT 1`, [ma]
+      `SELECT 1 FROM lichlamviec WHERE maCaLamViec=? LIMIT 1`, [ma]
     );
     return !!rows.length;
   },
 
   async remove(ma) {
-    const [rs] = await pool.query(`DELETE FROM CaLamViec WHERE maCaLamViec=?`, [ma]);
+    const [rs] = await pool.query(`DELETE FROM calamviec WHERE maCaLamViec=?`, [ma]);
     return rs.affectedRows || 0;
   }
 };
