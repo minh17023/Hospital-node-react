@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "../../components/Layout";
 import client from "../../api/client";
 
@@ -66,7 +66,6 @@ function CreateModal({ onClose, onDone }) {
     setSaving(true);
     try {
       if (Number(vaiTro) === 2 && maBacSi) {
-        // API tạo user cho bác sĩ có sẵn
         await client.post("/auth/doctor/register-user", {
           tenDangNhap,
           matKhau,
@@ -74,7 +73,6 @@ function CreateModal({ onClose, onDone }) {
           maBacSi,
         });
       } else {
-        // API create chung (nếu có trên backend của bạn)
         await client.post("/users", {
           tenDangNhap,
           matKhau,
@@ -162,7 +160,7 @@ function EditModal({ row, onClose, onDone }) {
         email: email || null,
         vaiTro: Number(vaiTro),
         trangThai: Number(trangThai),
-        maBacSi: maBacSi || null, // gỡ liên kết khi rỗng
+        maBacSi: maBacSi || null,
         matKhau: matKhau ? matKhau : undefined,
       });
       onDone?.();
@@ -249,6 +247,9 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
 
+  // guard tránh gọi đôi khi mount (StrictMode)
+  const didInit = useRef(false);
+
   async function load() {
     setLoading(true);
     try {
@@ -270,10 +271,15 @@ export default function AdminUsers() {
     }
   }
 
-  // tải theo trang
-  useEffect(() => { load(); }, [limit, offset]); // eslint-disable-line
-  // auto load khi đổi filter
-  useEffect(() => { setOffset(0); load(); }, [q, vaiTro, trangThai]); // eslint-disable-line
+  // CHỈ 1 useEffect cho tất cả thay đổi; có chốt didInit để không bị gọi 2 lần lúc mount
+  useEffect(() => {
+    if (!didInit.current) {
+      didInit.current = true;
+      load();
+      return;
+    }
+    load();
+  }, [q, vaiTro, trangThai, limit, offset]);
 
   const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
   const prev = () => setOffset((o) => Math.max(0, o - limit));
@@ -289,7 +295,7 @@ export default function AdminUsers() {
             </div>
           </div>
 
-          {/* Filters (auto load) */}
+          {/* Filters */}
           <div className="row g-2 mb-3">
             <div className="col-md-4">
               <input className="form-control" placeholder="Từ khóa (username / email)" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -313,7 +319,7 @@ export default function AdminUsers() {
               <button
                 type="button"
                 className="btn btn-outline-dark ms-auto"
-                onClick={() => { setQ(""); setVaiTro("ALL"); setTrangThai("ALL"); }}
+                onClick={() => { setQ(""); setVaiTro("ALL"); setTrangThai("ALL"); setOffset(0); }}
               >
                 Xóa lọc
               </button>

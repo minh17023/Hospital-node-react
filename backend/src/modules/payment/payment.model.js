@@ -32,16 +32,11 @@ export const PaymentModel = {
     );
   },
 
-  // 🔁 lấy theo **mã đơn hàng**
-  async findById(maDonHang) {
-    const [rows] = await pool.query(
-      `SELECT d.*, d.trangThai AS dhTrangThai,
-              l.*, l.trangThai AS lhTrangThai,
-              b.soCCCD
-         FROM ${T_ORDER} d
-         JOIN lichhen   l ON l.maLichHen   = d.maLichHen
-         LEFT JOIN benhnhan b ON b.maBenhNhan = l.maBenhNhan
-        WHERE d.maDonHang=? LIMIT 1`,
+  async findSimpleByMa(maDonHang, conn = pool) {
+    const [rows] = await conn.query(
+      `SELECT maDonHang, maLichHen, soTien, trangThai, qrUrl, ghiChu, createdAt, paidAt
+         FROM ${T_ORDER}
+        WHERE maDonHang=? LIMIT 1`,
       [maDonHang]
     );
     return rows[0] || null;
@@ -124,5 +119,38 @@ export const PaymentModel = {
         ]
       );
     } catch {}
+  },
+
+  //  List tất cả đơn (filter + phân trang) — chỉ các cột yêu cầu
+  async listAllSimple({ q = "", status = null, limit = 20, offset = 0 }) {
+    const where = [];
+    const params = [];
+
+    if (q) {
+      where.push("(maDonHang LIKE ? OR referenceCode LIKE ? OR maLichHen LIKE ? OR CONCAT('LH', maLichHen) LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (status !== null && status !== undefined && String(status) !== "") {
+      where.push("trangThai = ?");
+      params.push(Number(status));
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const [rows] = await pool.query(
+      `SELECT maDonHang, maLichHen, soTien, trangThai, qrUrl, ghiChu, createdAt, paidAt
+         FROM ${T_ORDER}
+         ${whereSql}
+        ORDER BY createdAt DESC, maDonHang DESC
+        LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM ${T_ORDER} ${whereSql}`,
+      params
+    );
+
+    return { items: rows, total: Number(total || 0) };
   },
 };

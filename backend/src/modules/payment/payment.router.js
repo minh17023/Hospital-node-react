@@ -2,8 +2,13 @@ import { Router } from "express";
 import express from "express";
 import { PaymentController } from "./payment.controller.js";
 import { authGuard } from "../../core/middlewares/auth.guard.js";
+import { requireRole } from "../../core/middlewares/roles.guard.js";
+import { ROLES } from "../../core/auth/roles.js";
+
 
 const r = Router();
+
+r.get("/payments", authGuard(true), requireRole(ROLES.ADMIN) , PaymentController.listAll);
 
 /** Khởi tạo thanh toán (đã có lịch hẹn) — body: { maLichHen } */
 r.post("/payments", authGuard(true), PaymentController.create);

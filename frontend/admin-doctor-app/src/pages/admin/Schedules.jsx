@@ -8,40 +8,67 @@ const fmtDate = (d) => (d ? String(d).slice(0, 10) : "-");
 const yesNo = (n) => (Number(n) === 1 ? "Hoạt động" : "Ngưng");
 const badge = (n) => (Number(n) === 1 ? "bg-success" : "bg-secondary");
 
-/* ===== Async fetch hook ===== */
-function useFetchList(fetcher, deps = []) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+/* ===== Simple modal chrome ===== */
+function useModalChrome(onClose) {
   useEffect(() => {
-    let ok = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const arr = await fetcher();
-        if (ok) setItems(arr);
-      } finally {
-        if (ok) setLoading(false);
-      }
-    })();
-    return () => { ok = false; };
-  }, deps);
-  return { items, loading };
+    document.body.classList.add("modal-open");
+    const esc = (e) => e.key === "Escape" && onClose?.();
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("keydown", esc);
+      document.body.classList.remove("modal-open");
+    };
+  }, [onClose]);
 }
 
-/* ===== Dropdowns không có ô tìm ===== */
-function SelectDoctor({ value, onChange, size = "sm" }) {
-  const { items, loading } = useFetchList(async () => {
-    const { data } = await client.get("/doctors", { params: { limit: 1000, offset: 0 } });
-    return data?.items || [];
-  }, []);
+/* =========================================================================
+   Caching layer (chặn StrictMode gọi trùng)
+   - mỗi key lưu { data, promise }
+   - nếu promise đang chạy, component sau reuse promise thay vì gọi mới
+   ======================================================================= */
+const _cache = new Map();
+/** @param {string} key  @param {() => Promise<any[]>} fetcher */
+async function getCachedList(key, fetcher) {
+  const hit = _cache.get(key);
+  if (hit?.data) return hit.data;
+  if (hit?.promise) return hit.promise;
+
+  const p = (async () => {
+    const data = await fetcher();
+    _cache.set(key, { data, promise: null });
+    return data;
+  })();
+
+  _cache.set(key, { data: null, promise: p });
+  return p;
+}
+
+/* ===== Dropdowns – chỉ fetch khi active=true, có cache ===== */
+function SelectDoctor({ value, onChange, size = "sm", active = true }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let ok = true;
+    if (!active) return;
+    setLoading(true);
+    getCachedList("doctors", async () => {
+      const { data } = await client.get("/doctors", { params: { limit: 1000, offset: 0 } });
+      return data?.items || [];
+    })
+      .then((arr) => ok && setItems(arr))
+      .finally(() => ok && setLoading(false));
+    return () => { ok = false; };
+  }, [active]);
+
   return (
     <select
       className={`form-select form-select-${size}`}
       value={value || ""}
       onChange={(e) => onChange?.(e.target.value)}
-      disabled={loading}
+      disabled={loading || !active}
     >
-      <option value="">-- Chọn bác sĩ --</option>
+      <option value="">{active ? "-- Chọn bác sĩ --" : "(Mở modal để tải…)"}</option>
       {items.map((d) => (
         <option key={d.maBacSi} value={d.maBacSi}>
           {d.tenBacSi || d.hoTen}
@@ -51,19 +78,31 @@ function SelectDoctor({ value, onChange, size = "sm" }) {
   );
 }
 
-function SelectClinic({ value, onChange, size = "sm" }) {
-  const { items, loading } = useFetchList(async () => {
-    const { data } = await client.get("/clinics", { params: { limit: 1000, page: 1 } });
-    return data?.items || [];
-  }, []);
+function SelectClinic({ value, onChange, size = "sm", active = true }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let ok = true;
+    if (!active) return;
+    setLoading(true);
+    getCachedList("clinics", async () => {
+      const { data } = await client.get("/clinics", { params: { limit: 1000, page: 1 } });
+      return data?.items || [];
+    })
+      .then((arr) => ok && setItems(arr))
+      .finally(() => ok && setLoading(false));
+    return () => { ok = false; };
+  }, [active]);
+
   return (
     <select
       className={`form-select form-select-${size}`}
       value={value || ""}
       onChange={(e) => onChange?.(e.target.value)}
-      disabled={loading}
+      disabled={loading || !active}
     >
-      <option value="">-- Chọn phòng khám --</option>
+      <option value="">{active ? "-- Chọn phòng khám --" : "(Mở modal để tải…)"}</option>
       {items.map((c) => (
         <option key={c.maPhongKham} value={c.maPhongKham}>
           {c.tenPhongKham}
@@ -73,15 +112,22 @@ function SelectClinic({ value, onChange, size = "sm" }) {
   );
 }
 
-/* ===== Dual list các ca (không ô tìm) ===== */
-function DualListShifts({ value = [], onChange }) {
-  const { items } = useFetchList(async () => {
-    const { data } = await client.get("/workshifts", { params: { limit: 1000, offset: 0 } });
-    return (data?.items || []).map((s) => ({
-      code: s.maCaLamViec,
-      label: `${s.tenCaLamViec} (${fmtTime(s.gioVao)}–${fmtTime(s.gioRa)})`,
-    }));
-  }, []);
+/* ===== Dual list – chỉ fetch khi active=true, có cache ===== */
+function DualListShifts({ value = [], onChange, active = true }) {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    let ok = true;
+    if (!active) return;
+    getCachedList("workshifts", async () => {
+      const { data } = await client.get("/workshifts", { params: { limit: 1000, offset: 0 } });
+      return (data?.items || []).map((s) => ({
+        code: s.maCaLamViec,
+        label: `${s.tenCaLamViec} (${fmtTime(s.gioVao)}–${fmtTime(s.gioRa)})`,
+      }));
+    }).then((arr) => ok && setItems(arr));
+    return () => { ok = false; };
+  }, [active]);
 
   const [leftSel, setLeftSel] = useState([]);
   const [rightSel, setRightSel] = useState([]);
@@ -110,6 +156,7 @@ function DualListShifts({ value = [], onChange }) {
         style={{ width: 260, height: 180 }}
         value={leftSel}
         onChange={(e) => setLeftSel(Array.from(e.target.selectedOptions).map((o) => o.value))}
+        disabled={!active}
       >
         {left.map((s) => (
           <option key={s.code} value={s.code}>{s.label}</option>
@@ -117,8 +164,8 @@ function DualListShifts({ value = [], onChange }) {
       </select>
 
       <div className="d-flex flex-column gap-2">
-        <button type="button" className="btn btn-outline-primary btn-sm" onClick={moveRight}>►</button>
-        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={moveLeft}>◄</button>
+        <button type="button" className="btn btn-outline-primary btn-sm" onClick={moveRight} disabled={!active}>►</button>
+        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={moveLeft} disabled={!active}>◄</button>
       </div>
 
       <select
@@ -127,6 +174,7 @@ function DualListShifts({ value = [], onChange }) {
         style={{ width: 260, height: 180 }}
         value={rightSel}
         onChange={(e) => setRightSel(Array.from(e.target.selectedOptions).map((o) => o.value))}
+        disabled={!active}
       >
         {right.map((s) => (
           <option key={s.code} value={s.code}>{s.label}</option>
@@ -136,22 +184,10 @@ function DualListShifts({ value = [], onChange }) {
   );
 }
 
-/* ===== Modal chrome ===== */
-function useModalChrome(onClose) {
-  useEffect(() => {
-    document.body.classList.add("modal-open");
-    const esc = (e) => e.key === "Escape" && onClose?.();
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("keydown", esc);
-      document.body.classList.remove("modal-open");
-    };
-  }, [onClose]);
-}
-
-/* ===== Create: 1 ngày, 1 hoặc nhiều ca (nhiều => generate from=to) ===== */
+/* ===== Create modal ===== */
 function CreateModal({ onClose, onDone }) {
   useModalChrome(onClose);
+
   const [maBacSi, setMaBacSi] = useState("");
   const [maPhongKham, setMaPhongKham] = useState("");
   const [shiftCodes, setShiftCodes] = useState([]);
@@ -207,15 +243,15 @@ function CreateModal({ onClose, onDone }) {
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label small">Bác sĩ *</label>
-                  <SelectDoctor value={maBacSi} onChange={setMaBacSi} />
+                  <SelectDoctor value={maBacSi} onChange={setMaBacSi} active />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Phòng khám *</label>
-                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
+                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} active />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ca làm việc *</label>
-                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} />
+                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} active />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ngày làm việc *</label>
@@ -248,9 +284,10 @@ function CreateModal({ onClose, onDone }) {
   );
 }
 
-/* ===== Generate nhiều ca theo dải ngày ===== */
+/* ===== Generate modal ===== */
 function GenerateModal({ onClose, onDone }) {
   useModalChrome(onClose);
+
   const [maBacSi, setMaBacSi] = useState("");
   const [maPhongKham, setMaPhongKham] = useState("");
   const [shiftCodes, setShiftCodes] = useState([]);
@@ -293,11 +330,11 @@ function GenerateModal({ onClose, onDone }) {
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label small">Bác sĩ *</label>
-                  <SelectDoctor value={maBacSi} onChange={setMaBacSi} />
+                  <SelectDoctor value={maBacSi} onChange={setMaBacSi} active />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Phòng khám *</label>
-                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
+                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} active />
                 </div>
 
                 <div className="col-md-6">
@@ -311,7 +348,7 @@ function GenerateModal({ onClose, onDone }) {
 
                 <div className="col-md-6">
                   <label className="form-label small">Danh sách ca *</label>
-                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} />
+                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} active />
                 </div>
 
                 <div className="col-md-3">
@@ -354,7 +391,7 @@ export default function AdminSchedules() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // paging (cố định 12/trang)
+  // paging
   const [limit] = useState(12);
   const [offset, setOffset] = useState(0);
   const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
@@ -388,13 +425,13 @@ export default function AdminSchedules() {
     }
   }
 
-  // Auto load
-  useEffect(() => { load(); }, [limit, offset]); // eslint-disable-line
+  // Chỉ 1 effect gọi load
   useEffect(() => {
-    setOffset(0);
     load();
-  }, [maBacSi, maPhongKham, from, to, status]);
+  }, [limit, offset, maBacSi, maPhongKham, from, to, status]);
 
+  // Khi đổi filter -> reset offset về 0 (KHÔNG gọi load trực tiếp để tránh 2 lần)
+  // (đã gộp vào effect trên nhờ phụ thuộc vào filter)
   const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
   const prev = () => setOffset((o) => Math.max(0, o - limit));
 
@@ -410,22 +447,22 @@ export default function AdminSchedules() {
             </div>
           </div>
 
-          {/* Filters (không có nút tải, không ô tìm BS/PK) */}
+          {/* Filters — dropdown KHÔNG fetch ở trang list */}
           <div className="row g-2 mb-3">
             <div className="col-lg-3 col-md-6">
-              <SelectDoctor value={maBacSi} onChange={setMaBacSi} />
+              <SelectDoctor active={false} value={maBacSi} onChange={(v) => { setMaBacSi(v); setOffset(0); }} />
             </div>
             <div className="col-lg-3 col-md-6">
-              <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
+              <SelectClinic active={false} value={maPhongKham} onChange={(v) => { setMaPhongKham(v); setOffset(0); }} />
             </div>
             <div className="col-lg-2 col-md-4">
-              <input type="date" className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <input type="date" className="form-control" value={from} onChange={(e) => { setFrom(e.target.value); setOffset(0); }} />
             </div>
             <div className="col-lg-2 col-md-4">
-              <input type="date" className="form-control" value={to} onChange={(e) => setTo(e.target.value)} />
+              <input type="date" className="form-control" value={to} onChange={(e) => { setTo(e.target.value); setOffset(0); }} />
             </div>
             <div className="col-lg-2 col-md-4">
-              <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="form-select" value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0); }}>
                 <option value="ALL">Tất cả</option>
                 <option value="1">Hoạt động</option>
                 <option value="0">Ngưng</option>
@@ -435,7 +472,7 @@ export default function AdminSchedules() {
               <button
                 className="btn btn-outline-dark ms-auto"
                 type="button"
-                onClick={() => { setMaBacSi(""); setMaPhongKham(""); setFrom(""); setTo(""); setStatus("ALL"); }}
+                onClick={() => { setMaBacSi(""); setMaPhongKham(""); setFrom(""); setTo(""); setStatus("ALL"); setOffset(0); }}
               >
                 Xóa lọc
               </button>
@@ -548,9 +585,10 @@ export default function AdminSchedules() {
   );
 }
 
-/* ===== Edit modal (giữ nguyên logic, chỉ đọc tên thay vì mã) ===== */
+/* ===== Edit modal (chỉ đọc tên, fetch clinic qua SelectClinic với cache) ===== */
 function EditModal({ row, onClose, onDone }) {
   useModalChrome(onClose);
+
   const [maPhongKham, setMaPhongKham] = useState(row.maPhongKham);
   const [maCaLamViec, setMaCaLamViec] = useState(row.maCaLamViec);
   const [ngayLamViec, setNgayLamViec] = useState(fmtDate(row.ngayLamViec));
@@ -591,7 +629,7 @@ function EditModal({ row, onClose, onDone }) {
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Phòng khám</label>
-                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
+                  <SelectClinic value={maPhongKham} onChange={setMaPhongKham} active />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ca làm việc</label>
@@ -600,7 +638,6 @@ function EditModal({ row, onClose, onDone }) {
                     value={maCaLamViec}
                     onChange={(e) => setMaCaLamViec(e.target.value)}
                   >
-                    {/* đơn giản hóa: hiển thị lại tên hiện tại + yêu cầu chọn ở trang thêm nếu muốn đổi */}
                     <option value={row.maCaLamViec}>{row.tenCaLamViec}</option>
                   </select>
                 </div>

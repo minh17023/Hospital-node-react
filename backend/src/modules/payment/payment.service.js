@@ -28,7 +28,7 @@ function buildSepayQR({ amount, addInfo }) {
 }
 
 const toView = (row) => ({
-  id: row.maDonHang,               // 🔁 dùng mã đơn hàng
+  id: row.maDonHang,             
   status: Number(row.dhTrangThai) === 1 ? "PAID" : "PENDING",
   amount: Number(row.soTien || 0),
   qrUrl: row.qrUrl || "",
@@ -37,6 +37,17 @@ const toView = (row) => ({
     : (row.ghiChu || ""),
   paidAt: row.paidAt || null,
   expireAt: row.expireAt || null,
+});
+
+const toSimpleView = (row) => ({
+  maDonHang: row.maDonHang,
+  maLichHen: row.maLichHen,
+  soTien: Number(row.soTien),
+  trangThai: Number(row.trangThai),
+  qrUrl: row.qrUrl || "",
+  ghiChu: row.ghiChu || "",
+  createdAt: row.createdAt || null,
+  paidAt: row.paidAt || null,
 });
 
 export const PaymentService = {
@@ -74,9 +85,9 @@ export const PaymentService = {
   },
 
   //  lấy theo **mã đơn hàng**
-  async getById(maDonHang) {
-    const row = await PaymentModel.findById(String(maDonHang));
-    return row ? toView(row) : null;
+  async getSimpleByMa(maDonHang) {
+    const row = await PaymentModel.findSimpleByMa(String(maDonHang));
+    return row ? toSimpleView(row) : null;
   },
 
   async listByAppointment(maLichHen) {
@@ -130,5 +141,21 @@ export const PaymentService = {
     } finally {
       conn.release();
     }
+  },
+
+  async getSimpleById(maDonHang) {
+    const row = await PaymentModel.findSimpleById(String(maDonHang));
+    return row ? toSimpleView(row) : null;
+  },
+
+  //  List all (simple)
+  async listAllSimple({ q, status, limit, offset }) {
+    const { items, total } = await PaymentModel.listAllSimple({
+      q: q?.trim() || "",
+      status,
+      limit: Number(limit) || 20,
+      offset: Number(offset) || 0,
+    });
+    return { items: items.map(toSimpleView), total };
   },
 };
