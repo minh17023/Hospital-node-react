@@ -21,9 +21,9 @@ export const AppointmentService = {
     try {
       await conn.beginTransaction();
 
-      // Khoá ca
+      // === Lấy & khoá ca (PHẢI lấy cả gioRa) ===
       const [rows] = await conn.query(
-        `SELECT llv.*, clv.gioVao
+        `SELECT llv.*, clv.gioVao, clv.gioRa
            FROM lichlamviec llv
            JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
           WHERE llv.maLichLamViec=? FOR UPDATE`,
@@ -34,33 +34,38 @@ export const AppointmentService = {
       if (String(ca.maBacSi) !== String(maBacSi))
         throw new AppError(400, "Bác sĩ không khớp với ca");
 
-      // Sức chứa
+      // Sức chứa (đếm theo khoảng ca)
       const [[{ n: used }]] = await conn.query(
         `SELECT COUNT(*) n
            FROM lichhen
-          WHERE maBacSi=? AND ngayHen=? AND gioHen=? AND trangThai<>-1`,
-        [ca.maBacSi, ca.ngayLamViec, ca.gioVao]
+          WHERE maBacSi=? AND ngayHen=?
+            AND gioHen >= ? AND gioHen < ?
+            AND trangThai<>-1`,
+        [ca.maBacSi, ca.ngayLamViec, ca.gioVao, ca.gioRa]
       );
       if (used >= Number(ca.soLuongBenhNhanToiDa)) throw new AppError(409, "Ca đã đầy");
 
-      // Chống trùng
+      // Chống trùng trong cùng ca
       const [dup] = await conn.query(
         `SELECT 1
            FROM lichhen
-          WHERE maBenhNhan=? AND maBacSi=? AND ngayHen=? AND gioHen=? AND trangThai<>-1
+          WHERE maBenhNhan=? AND maBacSi=? AND ngayHen=?
+            AND gioHen >= ? AND gioHen < ?
+            AND trangThai<>-1
           LIMIT 1`,
-        [maBenhNhan, ca.maBacSi, ca.ngayLamViec, ca.gioVao]
+        [maBenhNhan, ca.maBacSi, ca.ngayLamViec, ca.gioVao, ca.gioRa]
       );
       if (dup.length) throw new AppError(409, "Bạn đã đặt lịch trong ca này");
 
-      // === TÍNH GIÁ & LƯU SNAPSHOT ===
+      // === Giá & snapshot ===
       const base = await AppointmentModel.getDoctorFee(maBacSi);
       const hasBHYT = await AppointmentModel.hasValidBHYTByPatient(maBenhNhan);
       const phiKhamGoc = base;
       const phiDaGiam  = hasBHYT ? Math.round(base * 0.5) : base;
 
       const stt = Number(used) + 1;
-      const [rs] = await conn.query(
+
+      await conn.query(
         `INSERT INTO lichhen
          (maBenhNhan,maBacSi,maChuyenKhoa,ngayHen,gioHen,loaiKham,lyDoKham,
           hinhThuc,trangThai,sttKham,phiKhamGoc,phiDaGiam,ngayTao)
@@ -69,12 +74,13 @@ export const AppointmentService = {
          loaiKham, lyDoKham || null, 2, 1, stt, phiKhamGoc, phiDaGiam]
       );
 
+      // Tăng đếm ca
       await conn.query(
         "UPDATE lichlamviec SET soLuongDaDangKy = soLuongDaDangKy + 1 WHERE maLichLamViec=?",
         [maLichLamViec]
       );
 
-      // lấy mã lịch hẹn vừa tạo
+      // Lấy lại mã hẹn
       const [back] = await conn.query(
         `SELECT maLichHen FROM lichhen
           WHERE maBenhNhan=? AND maBacSi=? AND ngayHen=? AND gioHen=?
@@ -155,9 +161,8 @@ export const AppointmentService = {
     return await AppointmentModel.listByPatient(maBenhNhan, opts);
   },
 
-  // Trả full trạng thái; nếu có status thì lọc theo đúng số đó
   async list({ maBacSi = null, ngay = null, status = null, limit = 50, offset = 0 }) {
-  return await AppointmentModel.list({ maBacSi, ngay, status, limit, offset });
+    return await AppointmentModel.list({ maBacSi, ngay, status, limit, offset });
   },
 
   async updateStatus(ma, trangThai) {
@@ -171,43 +176,48 @@ export const AppointmentService = {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-  
-      // 1) Khoá bản ghi lịch hẹn
+
       const [[curr]] = await conn.query(
         `SELECT * FROM lichhen WHERE maLichHen=? FOR UPDATE`, [ma]
       );
       if (!curr) throw new AppError(404, "Không tìm thấy lịch hẹn");
-  
-      // 2) Idempotent
+
       if (Number(curr.trangThai) === -1) {
         await conn.commit();
         return;
       }
-  
-      // 3) Hủy
-      await conn.query(
-        `UPDATE lichhen SET trangThai=-1 WHERE maLichHen=?`,
-        [ma]
+
+      await conn.query(`UPDATE lichhen SET trangThai=-1 WHERE maLichHen=?`, [ma]);
+
+      // Xác định khoảng ca của lịch hẹn bị hủy rồi nén hàng đợi
+      const [winRows] = await conn.query(
+        `SELECT clv.gioVao, clv.gioRa
+           FROM lichlamviec llv
+           JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
+          WHERE llv.maBacSi=? AND llv.ngayLamViec=?
+            AND ? >= clv.gioVao AND ? < clv.gioRa
+          LIMIT 1`,
+        [curr.maBacSi, curr.ngayHen, curr.gioHen, curr.gioHen]
       );
-  
-      // 4) Nén hàng đợi
-      await conn.query(
-        `UPDATE lichhen
-            SET sttKham = sttKham - 1
-          WHERE maBacSi=? AND ngayHen=? AND gioHen=?
-            AND trangThai<>-1 AND sttKham > ?`,
-        [curr.maBacSi, curr.ngayHen, curr.gioHen, curr.sttKham]
-      );
-  
-      // 5) Ghi chú người hủy
+      const win = winRows[0];
+      if (win) {
+        await conn.query(
+          `UPDATE lichhen
+              SET sttKham = sttKham - 1
+            WHERE maBacSi=? AND ngayHen=?
+              AND gioHen >= ? AND gioHen < ?
+              AND trangThai<>-1 AND sttKham > ?`,
+          [curr.maBacSi, curr.ngayHen, win.gioVao, win.gioRa, curr.sttKham]
+        );
+      }
+
       await conn.query(
         `UPDATE lichhen
             SET lyDoKham = CONCAT(COALESCE(lyDoKham,''),' | cancel by ',?)
           WHERE maLichHen=?`,
         [byWho, ma]
       );
-  
-      // 6) Giảm đúng ca
+
       let maLLV = await AppointmentModel.findShiftByDoctorDateAndTimeWindow(
         curr.maBacSi, curr.ngayHen, curr.gioHen
       );
@@ -224,7 +234,7 @@ export const AppointmentService = {
           [maLLV]
         );
       }
-  
+
       await conn.commit();
     } catch (e) {
       await conn.rollback();

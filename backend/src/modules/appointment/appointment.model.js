@@ -110,7 +110,7 @@ export const AppointmentModel = {
     return rows[0]?.maLichHen || null;
   },
 
-  // Trả luôn tên phòng/ca (đã ép collation ở ON)
+  // Trả luôn tên phòng/ca
   async getById(ma) {
     const [rows] = await pool.query(
       `SELECT lh.*,
@@ -125,15 +125,13 @@ export const AppointmentModel = {
     LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
     LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
     LEFT JOIN lichlamviec llv
-           ON llv.maBacSi     
-            = lh.maBacSi     
+           ON llv.maBacSi     = lh.maBacSi
           AND llv.ngayLamViec = lh.ngayHen
     LEFT JOIN calamviec clv
            ON clv.maCaLamViec = llv.maCaLamViec
           AND lh.gioHen >= clv.gioVao AND lh.gioHen < clv.gioRa
     LEFT JOIN phongkham pk
-           ON pk.maPhongKham  
-            = llv.maPhongKham 
+           ON pk.maPhongKham  = llv.maPhongKham
         WHERE lh.maLichHen=? LIMIT 1`,
       [ma]
     );
@@ -175,13 +173,11 @@ export const AppointmentModel = {
         FROM lichlamviec llv
         JOIN calamviec  clv ON clv.maCaLamViec = llv.maCaLamViec
     ) AS S
-      ON S.maBacSi     
-       = lh.maBacSi    
+      ON S.maBacSi     = lh.maBacSi
      AND S.ngayLamViec = lh.ngayHen
      AND lh.gioHen >= S.gioVao AND lh.gioHen < S.gioRa
     LEFT JOIN phongkham  pk
-      ON pk.maPhongKham 
-       = S.maPhongKham 
+      ON pk.maPhongKham = S.maPhongKham
         WHERE ${where.join(" AND ")}
         ORDER BY lh.ngayHen DESC, lh.gioHen DESC
         LIMIT ? OFFSET ?`,
@@ -232,26 +228,24 @@ export const AppointmentModel = {
     );
     return Number(rows[0]?.maxStt || 0);
   },
-//
+
   async list({ maBacSi = null, ngay = null, status = null, limit = 50, offset = 0 }) {
-  const params = [];
-  const where = [];
+    const params = [];
+    const where = [];
 
-  if (maBacSi) { where.push("lh.maBacSi=?"); params.push(maBacSi); }
-  if (ngay)    { where.push("lh.ngayHen=?"); params.push(ngay); }
-  if (status !== null && status !== undefined && status !== "") {
-    where.push("lh.trangThai=?"); params.push(Number(status));
-  }
+    if (maBacSi) { where.push("lh.maBacSi=?"); params.push(maBacSi); }
+    if (ngay)    { where.push("lh.ngayHen=?"); params.push(ngay); }
+    if (status !== null && status !== undefined && status !== "") {
+      where.push("lh.trangThai=?"); params.push(Number(status));
+    }
 
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-  const [rows] = await pool.query(
-    `SELECT
+    const [rows] = await pool.query(
+      `SELECT
         lh.*,
         nv.hoTen AS tenBacSi,
         ck.tenChuyenKhoa,
-
-        /* Lấy 1 ca phù hợp nhất (nếu có) – tránh nhân đôi hàng */
         (
           SELECT pk.tenPhongKham
             FROM lichlamviec llv
@@ -263,7 +257,6 @@ export const AppointmentModel = {
         ORDER BY clv.gioVao DESC
            LIMIT 1
         ) AS tenPhongKham,
-
         (
           SELECT clv.tenCaLamViec
             FROM lichlamviec llv
@@ -274,7 +267,6 @@ export const AppointmentModel = {
         ORDER BY clv.gioVao DESC
            LIMIT 1
         ) AS tenCaLamViec
-
      FROM lichhen lh
 LEFT JOIN bacsi      bs ON bs.maBacSi      = lh.maBacSi
 LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
@@ -282,10 +274,10 @@ LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
     ${whereSql}
  ORDER BY lh.maLichHen DESC, lh.gioHen DESC
  LIMIT ? OFFSET ?`,
-    [...params, Number(limit), Number(offset)]
-  );
-  return rows;
-},
+      [...params, Number(limit), Number(offset)]
+    );
+    return rows;
+  },
 
   async findShiftByDoctorDateAndTimeWindow(maBacSi, ngayISO, gioAny) {
     const [rows] = await pool.query(
