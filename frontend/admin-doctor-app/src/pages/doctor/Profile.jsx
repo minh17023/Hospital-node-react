@@ -1,3 +1,4 @@
+// frontend/admin-doctor-app/src/pages/doctor/Profile.jsx
 import { useEffect, useMemo, useState } from "react";
 import Layout from "../../components/Layout";
 import client from "../../api/client";
@@ -8,6 +9,7 @@ function getMe() {
 }
 
 const numberOrNull = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
+const sliceDate = (d) => (d ? String(d).slice(0, 10) : "");
 
 export default function Profile() {
   const me = useMemo(() => getMe() || {}, []);
@@ -35,32 +37,32 @@ export default function Profile() {
 
   useEffect(() => {
     loadProfile();
+  
   }, []);
 
   async function loadProfile() {
     setLoading(true); setError(""); setOk("");
     try {
-      // Tìm hồ sơ bác sĩ theo me.maUser từ list (vì chưa có endpoint by-user)
-      const { data } = await client.get("/doctors", { params: { limit: 500, offset: 0 } });
-      const items = data?.items || [];
-      const mine = items.find(x => String(x.maUser) === String(me.maUser));
-      if (!mine) throw new Error("Không tìm thấy hồ sơ bác sĩ gắn với tài khoản này.");
+      if (!me?.maUser) throw new Error("Không có maUser trong phiên đăng nhập");
 
-      setMaBacSi(mine.maBacSi);
+      // ✅ GỌI API MỚI: /doctors/by-user/:maUser
+      const { data } = await client.get(`/doctors/by-user/${me.maUser}`);
+
+      setMaBacSi(data.maBacSi);
       setForm({
-        tenBacSi: mine.tenBacSi || me.hoTen || "",
-        maChuyenKhoa: mine.maChuyenKhoa || "",
-        tenChuyenKhoa: mine.tenChuyenKhoa || "",
-        bangCap: mine.bangCap || "",
-        chungChi: mine.chungChi || "",
-        kinhNghiem: Number(mine.kinhNghiem ?? 0),
-        chuyenMonChinh: mine.chuyenMonChinh || "",
-        chuyenMonPhu: mine.chuyenMonPhu || "",
-        soLuongBenhNhanToiDa: Number(mine.soLuongBenhNhanToiDa ?? 20),
-        thoiGianKhamBinhQuan: Number(mine.thoiGianKhamBinhQuan ?? 15),
-        ngayBatDauCongTac: (mine.ngayBatDauCongTac || "").slice(0,10),
-        phiKham: Number(mine.phiKham ?? 0),
-        ghiChu: mine.ghiChu || "",
+        tenBacSi: data.tenBacSi || me.hoTen || "",
+        maChuyenKhoa: data.maChuyenKhoa || "",
+        tenChuyenKhoa: data.tenChuyenKhoa || "",
+        bangCap: data.bangCap || "",
+        chungChi: data.chungChi || "",
+        kinhNghiem: Number(data.kinhNghiem ?? 0),
+        chuyenMonChinh: data.chuyenMonChinh || "",
+        chuyenMonPhu: data.chuyenMonPhu || "",
+        soLuongBenhNhanToiDa: Number(data.soLuongBenhNhanToiDa ?? 20),
+        thoiGianKhamBinhQuan: Number(data.thoiGianKhamBinhQuan ?? 15),
+        ngayBatDauCongTac: sliceDate(data.ngayBatDauCongTac),
+        phiKham: Number(data.phiKham ?? 0),
+        ghiChu: data.ghiChu || "",
       });
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || "Lỗi tải hồ sơ");
@@ -79,8 +81,7 @@ export default function Profile() {
     setSaving(true); setError(""); setOk("");
     try {
       const payload = {
-        tenBacSi: form.tenBacSi,
-        // maChuyenKhoa để nguyên, khóa không cho tự đổi
+        tenBacSi: form.tenBacSi,              // alias, backend có thể bỏ qua
         bangCap: form.bangCap || null,
         chungChi: form.chungChi || null,
         kinhNghiem: numberOrNull(form.kinhNghiem),
@@ -92,10 +93,10 @@ export default function Profile() {
         phiKham: numberOrNull(form.phiKham),
         ghiChu: form.ghiChu || null,
       };
+
       const { data } = await client.put(`/doctors/${maBacSi}`, payload);
-      // cập nhật lại view
+
       setOk("Đã lưu thay đổi.");
-      // sync lại form từ server (đề phòng DB chuẩn hóa)
       setForm(f => ({
         ...f,
         tenBacSi: data.tenBacSi || f.tenBacSi,
@@ -106,7 +107,7 @@ export default function Profile() {
         chuyenMonPhu: data.chuyenMonPhu || "",
         soLuongBenhNhanToiDa: Number(data.soLuongBenhNhanToiDa ?? f.soLuongBenhNhanToiDa),
         thoiGianKhamBinhQuan: Number(data.thoiGianKhamBinhQuan ?? f.thoiGianKhamBinhQuan),
-        ngayBatDauCongTac: (data.ngayBatDauCongTac || f.ngayBatDauCongTac || "").slice(0,10),
+        ngayBatDauCongTac: sliceDate(data.ngayBatDauCongTac || f.ngayBatDauCongTac),
         phiKham: Number(data.phiKham ?? f.phiKham),
         ghiChu: data.ghiChu || "",
       }));
@@ -114,14 +115,13 @@ export default function Profile() {
       setError(e?.response?.data?.message || "Lưu hồ sơ thất bại");
     } finally {
       setSaving(false);
-      // ẩn alert sau 2.5s
-      setTimeout(()=>setOk(""), 2500);
+      setTimeout(() => setOk(""), 2500);
     }
   }
 
   return (
     <Layout>
-      <div className="container-fluid px-0">
+      <div className="container-fluid py-3" style={{ overflowY: "auto", maxHeight: "calc(100vh - 120px)" }}>
         <h3 className="mb-3">Hồ sơ bác sĩ</h3>
 
         {loading ? (
@@ -132,10 +132,15 @@ export default function Profile() {
           <div className="card shadow-sm">
             <div className="card-body">
               <div className="row g-3">
-                <div className="col-md-6">
-                  <label className="form-label">Họ và tên *</label>
-                  <input className="form-control" name="tenBacSi" value={form.tenBacSi} onChange={onChange} />
-                </div>
+                <label className="form-label">Họ và tên *</label>
+                <input
+                className="form-control"
+                value={form.tenBacSi}
+                disabled
+                aria-disabled="true"
+                style={{ userSelect: "none" }}
+                title="Thông tin được lấy từ hồ sơ nhân viên — không thể chỉnh sửa tại đây"
+                />
 
                 <div className="col-md-3">
                   <label className="form-label">Mã chuyên khoa</label>

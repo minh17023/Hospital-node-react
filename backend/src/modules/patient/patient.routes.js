@@ -14,7 +14,7 @@ r.get("/patients/me", authGuard(true), PatientController.me);
 r.get(
   "/patients",
   authGuard(true),
-  requireRole(ROLES.ADMIN),
+  requireRole(ROLES.ADMIN,ROLES.DOCTOR),
   PatientController.list
 );
 

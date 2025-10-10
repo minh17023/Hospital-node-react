@@ -232,38 +232,60 @@ export const AppointmentModel = {
     );
     return Number(rows[0]?.maxStt || 0);
   },
+//
+  async list({ maBacSi = null, ngay = null, status = null, limit = 50, offset = 0 }) {
+  const params = [];
+  const where = [];
 
-  async list({ maBacSi = null, ngay = null, limit = 50, offset = 0 }) {
-    const params = [];
-    const where = ["lh.trangThai<>-1"];
-    if (maBacSi) { where.push("lh.maBacSi=?"); params.push(maBacSi); }
-    if (ngay)    { where.push("lh.ngayHen=?"); params.push(ngay);   }
+  if (maBacSi) { where.push("lh.maBacSi=?"); params.push(maBacSi); }
+  if (ngay)    { where.push("lh.ngayHen=?"); params.push(ngay); }
+  if (status !== null && status !== undefined && status !== "") {
+    where.push("lh.trangThai=?"); params.push(Number(status));
+  }
 
-    const [rows] = await pool.query(
-      `SELECT lh.*,
-              nv.hoTen AS tenBacSi, ck.tenChuyenKhoa,
-              pk.tenPhongKham, clv.tenCaLamViec
-         FROM lichhen lh
-    LEFT JOIN bacsi      bs  ON bs.maBacSi      = lh.maBacSi
-    LEFT JOIN nhanvien   nv  ON nv.maNhanVien   = bs.maNhanVien
-    LEFT JOIN chuyenkhoa ck  ON ck.maChuyenKhoa = lh.maChuyenKhoa
-    LEFT JOIN lichlamviec llv
-           ON llv.maBacSi     
-            = lh.maBacSi      
-          AND llv.ngayLamViec = lh.ngayHen
-    LEFT JOIN calamviec clv
-           ON clv.maCaLamViec = llv.maCaLamViec
-          AND lh.gioHen >= clv.gioVao AND lh.gioHen < clv.gioRa
-    LEFT JOIN phongkham  pk
-           ON pk.maPhongKham  
-            = llv.maPhongKham 
-        WHERE ${where.join(" AND ")}
-        ORDER BY lh.ngayHen DESC, lh.gioHen DESC
-        LIMIT ? OFFSET ?`,
-      [...params, Number(limit), Number(offset)]
-    );
-    return rows;
-  },
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const [rows] = await pool.query(
+    `SELECT
+        lh.*,
+        nv.hoTen AS tenBacSi,
+        ck.tenChuyenKhoa,
+
+        /* Lấy 1 ca phù hợp nhất (nếu có) – tránh nhân đôi hàng */
+        (
+          SELECT pk.tenPhongKham
+            FROM lichlamviec llv
+            JOIN calamviec  clv ON clv.maCaLamViec = llv.maCaLamViec
+       LEFT JOIN phongkham pk  ON pk.maPhongKham  = llv.maPhongKham
+           WHERE llv.maBacSi     = lh.maBacSi
+             AND llv.ngayLamViec = lh.ngayHen
+             AND lh.gioHen >= clv.gioVao AND lh.gioHen < clv.gioRa
+        ORDER BY clv.gioVao DESC
+           LIMIT 1
+        ) AS tenPhongKham,
+
+        (
+          SELECT clv.tenCaLamViec
+            FROM lichlamviec llv
+            JOIN calamviec  clv ON clv.maCaLamViec = llv.maCaLamViec
+           WHERE llv.maBacSi     = lh.maBacSi
+             AND llv.ngayLamViec = lh.ngayHen
+             AND lh.gioHen >= clv.gioVao AND lh.gioHen < clv.gioRa
+        ORDER BY clv.gioVao DESC
+           LIMIT 1
+        ) AS tenCaLamViec
+
+     FROM lichhen lh
+LEFT JOIN bacsi      bs ON bs.maBacSi      = lh.maBacSi
+LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
+LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
+    ${whereSql}
+ ORDER BY lh.ngayHen DESC, lh.gioHen DESC
+ LIMIT ? OFFSET ?`,
+    [...params, Number(limit), Number(offset)]
+  );
+  return rows;
+},
 
   async findShiftByDoctorDateAndTimeWindow(maBacSi, ngayISO, gioAny) {
     const [rows] = await pool.query(

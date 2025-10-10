@@ -42,4 +42,7 @@ export const DoctorService = {
     if (!ok) throw new AppError(404, "Không tìm thấy bác sĩ");
     return true;
   },
+
+  getByMa:  (ma)      => DoctorModel.findByMa(ma),
+  getByUser:(maUser)  => DoctorModel.findByUser(maUser),
 };

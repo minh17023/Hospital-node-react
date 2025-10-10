@@ -155,8 +155,9 @@ export const AppointmentService = {
     return await AppointmentModel.listByPatient(maBenhNhan, opts);
   },
 
-  async list({ maBacSi = null, ngay = null, limit = 50, offset = 0 }) {
-    return await AppointmentModel.list({ maBacSi, ngay, limit, offset });
+  // Trả full trạng thái; nếu có status thì lọc theo đúng số đó
+  async list({ maBacSi = null, ngay = null, status = null, limit = 50, offset = 0 }) {
+  return await AppointmentModel.list({ maBacSi, ngay, status, limit, offset });
   },
 
   async updateStatus(ma, trangThai) {
