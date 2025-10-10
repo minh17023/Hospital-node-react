@@ -1,3 +1,4 @@
+// src/pages/admin/Doctors.jsx
 import { useEffect, useMemo, useState } from "react";
 import client from "../../api/client";
 import Layout from "../../components/Layout";
@@ -187,34 +188,51 @@ export default function AdminDoctors() {
 
 /* ==================== MODALS ==================== */
 function useModalChrome(onClose) {
-  // chặn scroll body + đóng bằng ESC
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.classList.add("modal-open");
     const onEsc = (e) => { if (e.key === "Escape") onClose?.(); };
     window.addEventListener("keydown", onEsc);
     return () => {
       window.removeEventListener("keydown", onEsc);
-      document.body.style.overflow = prev;
+      document.body.classList.remove("modal-open");
     };
   }, [onClose]);
 }
 
-function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) {
-  useModalChrome(onClose);
-
-  // specialties dropdown
-  const [specialties, setSpecialties] = useState([]);
+/* Select chuyên khoa (lấy từ /specialties) */
+function SpecialtySelect({ value, onChange, disabled = false, size = "sm" }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
+    let mounted = true;
     (async () => {
+      setLoading(true);
       try {
         const { data } = await client.get("/specialties");
-        setSpecialties(data?.items || []);
-      } catch {
-        setSpecialties([]);
-      }
+        if (mounted) setItems(data?.items || []);
+      } finally { setLoading(false); }
     })();
+    return () => { mounted = false; };
   }, []);
+  return (
+    <select
+      className={`form-select form-select-${size}`}
+      value={value}
+      onChange={(e) => onChange?.(e.target.value)}
+      disabled={disabled || loading}
+    >
+      <option value="">-- Chọn chuyên khoa --</option>
+      {items.map((s) => (
+        <option key={s.maChuyenKhoa} value={s.maChuyenKhoa}>
+          {s.maChuyenKhoa} — {s.tenChuyenKhoa}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) {
+  useModalChrome(onClose);
 
   // core fields
   const [maNhanVien, setMaNhanVien] = useState(data.maNhanVien || "");
@@ -236,13 +254,10 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
   const submit = (e) => {
     e.preventDefault();
     if (!editMode && (!maNhanVien || !maChuyenKhoa)) {
-      return alert("Vui lòng nhập mã nhân viên & chọn chuyên khoa");
+      return alert("Vui lòng nhập mã nhân viên & chuyên khoa");
     }
-    if (!maChuyenKhoa) return alert("Vui lòng chọn chuyên khoa");
-
     const payload = {
-      ...(editMode ? {} : { maNhanVien }),
-      maChuyenKhoa, // luôn gửi để BE cập nhật
+      ...(editMode ? {} : { maNhanVien, maChuyenKhoa }),
       maHocVi: emptyToNull(maHocVi),
       maHocHam: emptyToNull(maHocHam),
       bangCap: emptyToNull(bangCap),
@@ -262,127 +277,123 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
 
   return (
     <>
-      {/* modal container */}
       <div
         className="modal fade show"
         role="dialog"
         tabIndex={-1}
-        style={{ display: "block", zIndex: 1060, background: "rgba(0,0,0,.35)" }}
+        style={{ display: "block", zIndex: 1060 }}
         onClick={onClose}
       >
+        {/* XL, centered, rộng – hạn chế phải cuộn */}
         <div
-          className="modal-dialog modal-dialog-centered modal-xl"   // rộng & giữa
+          className="modal-dialog modal-dialog-centered modal-xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <form className="modal-content" style={{ maxHeight: "90vh" }} onSubmit={submit}>
+          <form className="modal-content" onSubmit={submit}>
             <div className="modal-header">
               <h5 className="modal-title">{title}</h5>
               <button type="button" className="btn-close" onClick={onClose} />
             </div>
 
+            {/* Không tạo scroll nội bộ */}
             <div className="modal-body" style={{ overflow: "visible" }}>
-              {/* Khối đầu – mã NV & chuyên khoa */}
-              <div className="row g-3">
-                {!editMode && (
-                  <div className="col-md-6">
-                    <label className="form-label">Mã nhân viên <span className="text-danger">*</span></label>
-                    <input className="form-control" value={maNhanVien}
-                           onChange={(e) => setMaNhanVien(e.target.value)} autoFocus />
+              {/* Hàng đầu: nhân viên + chuyên khoa */}
+              {!editMode && (
+                <div className="row g-3">
+                  <div className="col-md-6 col-xl-6">
+                    <label className="form-label small">Mã nhân viên <span className="text-danger">*</span></label>
+                    <input
+                      className="form-control form-control-sm"
+                      value={maNhanVien}
+                      onChange={(e) => setMaNhanVien(e.target.value)}
+                      autoFocus
+                    />
                   </div>
-                )}
-                <div className={!editMode ? "col-md-6" : "col-md-6"}>
-                  <label className="form-label">Chuyên khoa <span className="text-danger">*</span></label>
-                  <select
-                    className="form-select"
-                    value={maChuyenKhoa}
-                    onChange={(e) => setMaChuyenKhoa(e.target.value)}
-                  >
-                    <option value="">— Chọn chuyên khoa —</option>
-                    {specialties.map((s) => (
-                      <option key={s.maChuyenKhoa} value={s.maChuyenKhoa}>
-                        {s.tenChuyenKhoa} ({s.maChuyenKhoa})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="col-md-6 col-xl-6">
+                    <label className="form-label small">Chuyên khoa <span className="text-danger">*</span></label>
+                    <SpecialtySelect
+                      value={maChuyenKhoa}
+                      onChange={setMaChuyenKhoa}
+                      size="sm"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Thông tin chuyên môn */}
+              {/* Lưới 3 cột trên xl, 2 cột trên md – input nhỏ */}
               <div className="row g-3 mt-1">
-                <div className="col-md-6">
-                  <label className="form-label">Mã học vị</label>
-                  <input className="form-control" value={maHocVi} onChange={(e) => setMaHocVi(e.target.value)} />
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Mã học vị</label>
+                  <input className="form-control form-control-sm" value={maHocVi} onChange={(e) => setMaHocVi(e.target.value)} />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Mã học hàm</label>
-                  <input className="form-control" value={maHocHam} onChange={(e) => setMaHocHam(e.target.value)} />
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Mã học hàm</label>
+                  <input className="form-control form-control-sm" value={maHocHam} onChange={(e) => setMaHocHam(e.target.value)} />
                 </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Bằng cấp</label>
-                  <input className="form-control" value={bangCap} onChange={(e) => setBangCap(e.target.value)} />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label">Chứng chỉ</label>
-                  <input className="form-control" value={chungChi} onChange={(e) => setChungChi(e.target.value)} />
+                <div className="col-md-12 col-xl-4">
+                  <label className="form-label small">Bằng cấp</label>
+                  <input className="form-control form-control-sm" value={bangCap} onChange={(e) => setBangCap(e.target.value)} />
                 </div>
 
-                <div className="col-md-4">
-                  <label className="form-label">Kinh nghiệm (năm)</label>
-                  <input type="number" className="form-control" min={0}
+                <div className="col-md-12 col-xl-4">
+                  <label className="form-label small">Chứng chỉ</label>
+                  <input className="form-control form-control-sm" value={chungChi} onChange={(e) => setChungChi(e.target.value)} />
+                </div>
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Kinh nghiệm (năm)</label>
+                  <input type="number" min={0} className="form-control form-control-sm"
                          value={kinhNghiem} onChange={(e) => setKinhNghiem(e.target.value)} />
                 </div>
-                <div className="col-md-4">
-                  <label className="form-label">Số BN tối đa / ca</label>
-                  <input type="number" className="form-control" min={0}
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Số BN tối đa / ca</label>
+                  <input type="number" min={0} className="form-control form-control-sm"
                          value={soLuongBenhNhanToiDa} onChange={(e) => setSL(e.target.value)} />
                 </div>
-                <div className="col-md-4">
-                  <label className="form-label">TG khám bình quân (phút)</label>
-                  <input type="number" className="form-control" min={0}
+
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">TG khám bình quân (phút)</label>
+                  <input type="number" min={0} className="form-control form-control-sm"
                          value={thoiGianKhamBinhQuan} onChange={(e) => setTG(e.target.value)} />
                 </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Phí khám (VNĐ)</label>
-                  <input type="number" className="form-control" min={0}
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Phí khám (VNĐ)</label>
+                  <input type="number" min={0} className="form-control form-control-sm"
                          value={phiKham} onChange={(e) => setPhiKham(e.target.value)} />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Ngày bắt đầu công tác</label>
-                  <input type="date" className="form-control" value={ngayBatDauCongTac || ""}
-                         onChange={(e) => setNgay(e.target.value)} />
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Ngày bắt đầu công tác</label>
+                  <input type="date" className="form-control form-control-sm"
+                         value={ngayBatDauCongTac || ""} onChange={(e) => setNgay(e.target.value)} />
                 </div>
 
-                <div className="col-md-6">
-                  <label className="form-label">Trạng thái</label>
-                  <select className="form-select" value={trangThai} onChange={(e) => setTrangThai(e.target.value)}>
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Trạng thái</label>
+                  <select className="form-select form-select-sm" value={trangThai} onChange={(e) => setTrangThai(e.target.value)}>
                     <option value={1}>Đang làm</option>
                     <option value={0}>Tạm nghỉ</option>
                   </select>
                 </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Chuyên môn chính</label>
-                  <input className="form-control" value={chuyenMonChinh}
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Chuyên môn chính</label>
+                  <input className="form-control form-control-sm" value={chuyenMonChinh}
                          onChange={(e) => setChuyenMonChinh(e.target.value)} />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Chuyên môn phụ</label>
-                  <input className="form-control" value={chuyenMonPhu}
+                <div className="col-md-6 col-xl-4">
+                  <label className="form-label small">Chuyên môn phụ</label>
+                  <input className="form-control form-control-sm" value={chuyenMonPhu}
                          onChange={(e) => setChuyenMonPhu(e.target.value)} />
                 </div>
 
                 <div className="col-12">
-                  <label className="form-label">Ghi chú</label>
-                  <textarea className="form-control" rows={2} value={ghiChu}
+                  <label className="form-label small">Ghi chú</label>
+                  <textarea className="form-control form-control-sm" rows={2} value={ghiChu}
                             onChange={(e) => setGhiChu(e.target.value)} />
                 </div>
               </div>
             </div>
 
             <div className="modal-footer justify-content-center">
-              <button className="btn btn-outline-secondary" type="button" onClick={onClose}>Hủy</button>
+              <button className="btn btn-secondary" type="button" onClick={onClose}>Hủy</button>
               <button className="btn btn-primary" type="submit">
                 {editMode ? "Lưu thay đổi" : "Tạo bác sĩ"}
               </button>
@@ -390,22 +401,17 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
           </form>
         </div>
       </div>
+
+      <div className="modal-backdrop fade show" style={{ zIndex: 1040 }} onClick={onClose} />
     </>
   );
 }
 
 function ConfirmModal({ text, onClose, onConfirm }) {
   useModalChrome(onClose);
-
   return (
     <>
-      <div
-        className="modal fade show"
-        role="dialog"
-        tabIndex={-1}
-        style={{ display: "block", zIndex: 1060, background: "rgba(0,0,0,.35)" }}
-        onClick={onClose}
-      >
+      <div className="modal fade show" role="dialog" tabIndex={-1} style={{ display: "block", zIndex: 1060 }} onClick={onClose}>
         <div className="modal-dialog modal-dialog-centered modal-sm" onClick={(e) => e.stopPropagation()}>
           <div className="modal-content">
             <div className="modal-header">
@@ -415,13 +421,14 @@ function ConfirmModal({ text, onClose, onConfirm }) {
             <div className="modal-body">
               <p className="m-0">{text}</p>
             </div>
-            <div className="modal-footer justify-content-center">
-              <button className="btn btn-outline-secondary" onClick={onClose}>Hủy</button>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={onClose}>Hủy</button>
               <button className="btn btn-danger" onClick={onConfirm}>Xóa</button>
             </div>
           </div>
         </div>
       </div>
+      <div className="modal-backdrop fade show" style={{ zIndex: 1040 }} onClick={onClose} />
     </>
   );
 }
