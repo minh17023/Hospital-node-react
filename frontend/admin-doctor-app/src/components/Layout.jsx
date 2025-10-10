@@ -5,13 +5,29 @@ import AlertProvider from "./AlertProvider";
 export default function Layout({ children }) {
   return (
     <AlertProvider>
-      <div className="container-fluid p-0">
-        <Topbar />
-        <div className="row g-0">
-          <aside className="col-lg-2 d-none d-lg-block">
+      {/* App shell cố định chiều cao */}
+      <div className="app-shell">
+        {/* Topbar cao var(--topbar-h) */}
+        <div className="topbar">
+          <Topbar />
+        </div>
+
+        {/* Phần còn lại chiếm toàn bộ chiều cao còn lại */}
+        <div className="app-content">
+          {/* Sidebar cố định chiều rộng, không cuộn trang */}
+          <aside className="app-sidebar d-none d-lg-block">
             <Sidebar />
           </aside>
-          <main className="col-12 col-lg-10 p-3">{children}</main>
+
+          {/* Vùng nội dung có thể cuộn nội bộ */}
+          <main className="app-main p-3">
+            {/* Mỗi trang bọc trong .page -> .page-body để kích hoạt overflow nội bộ */}
+            <div className="page">
+              <div className="page-body">
+                {children}
+              </div>
+            </div>
+          </main>
         </div>
       </div>
     </AlertProvider>

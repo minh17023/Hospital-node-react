@@ -10,6 +10,8 @@ import scheduleRouter from "./modules/schedule/schedule.routes.js"
 import appointmentRoutes from "./modules/appointment/appointment.routes.js"
 import paymentRoutes from "./modules/payment/payment.router.js"
 import userRoutes from "./modules/users/users.routes.js"
+import analyticRoutes from "./modules/analytic/analytic.routes.js"
+
 const api = Router();
 
 // /api/v1/auth/...
@@ -26,5 +28,6 @@ api.use("/", scheduleRouter);
 api.use("/", appointmentRoutes);
 api.use("/", paymentRoutes);
 api.use("/", userRoutes);
+api.use("/", analyticRoutes);
 
 export default api;
