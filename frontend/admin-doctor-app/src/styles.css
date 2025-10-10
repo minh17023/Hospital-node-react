@@ -57,15 +57,69 @@ html, body, #root { height: 100%; overflow: hidden; }
 }
 .sidebar .foot{ border-top:1px solid rgba(255,255,255,.06); padding:10px; font-size:.75rem; opacity:.8; }
 
+/* ===== Topbar (nâng cấp) ===== */
 .topbar{
   height: var(--topbar-h);
-  background: var(--shell-dark);
-  border-bottom: 1px solid var(--shell-border);
-  box-shadow: 0 2px 8px rgba(2,6,23,.28);
+  z-index: 1030; /* nổi trên card/charts */
+  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, #0f172a 0%, #0b1225 100%);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 4px 16px rgba(2,6,23,.35);
 }
-.topbar, .topbar .navbar-brand, .topbar .nav-link, .topbar .btn{ color:#4d95f5; }
-.topbar .navbar-toggler { border-color: var(--shell-fg-muted); }
-.topbar .navbar-toggler-icon { filter: invert(1); }
+.topbar .navbar-brand,
+.topbar .nav-link,
+.topbar .btn{ color:#cfe0ff; }
+
+/* Brand */
+.topbar-brand{
+  font-weight: 600;
+  letter-spacing:.2px;
+  color:#e5edff !important;
+}
+.topbar .brand-dot{
+  width: 18px; height: 18px; border-radius: 6px;
+  background: conic-gradient(from 180deg, #14b8a6, #3b82f6, #14b8a6);
+  box-shadow: 0 4px 16px rgba(20,184,166,.45);
+}
+
+/* Hamburger (mobile/offcanvas) */
+.topbar-toggle{ border:1px solid rgba(255,255,255,.16); border-radius:10px; padding:6px 8px; }
+.topbar-toggle:hover{ background: rgba(255,255,255,.06); }
+.hamburger{ display:inline-block; }
+.hamburger span{
+  display:block; width:18px; height:2px; margin:3px 0; background:#cfe0ff; border-radius:2px;
+}
+
+/* Toggler (bootstrap) */
+.topbar .navbar-toggler{
+  border-color: rgba(255,255,255,.15);
+}
+.topbar .navbar-toggler-icon{ filter: invert(1); opacity:.9; }
+
+/* Role badge (chip) */
+.role-badge{
+  display:inline-block;
+  padding:.35rem .6rem;
+  border-radius:999px;
+  font-size:.75rem; font-weight:600; letter-spacing:.2px;
+  color:#e6fffb;
+  background: linear-gradient(135deg, rgba(20,184,166,.28), rgba(59,130,246,.28));
+  border:1px solid rgba(255,255,255,.15);
+  box-shadow: 0 3px 12px rgba(20,184,166,.25);
+  text-transform: uppercase;
+}
+
+/* Logout button */
+.topbar-btn{
+  --btn-bg: linear-gradient(135deg, rgba(20,184,166,.95), rgba(59,130,246,.95));
+  background: var(--btn-bg);
+  color:#fff;
+  border:none;
+  padding:.45rem .85rem;
+  border-radius:10px;
+  box-shadow: 0 8px 20px rgba(20,184,166,.35);
+}
+.topbar-btn:hover{ filter: brightness(1.05); }
 
 /* Footer phân trang dính đáy card */
 .card-footer-tight{ border-top:1px solid #dee2e6; background:#fff; }

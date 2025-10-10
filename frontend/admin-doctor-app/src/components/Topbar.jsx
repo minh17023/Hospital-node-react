@@ -2,40 +2,61 @@ import { getMe, clearAuth } from "../utils/auth";
 
 export default function Topbar() {
   const me = getMe() || {};
-  const logout = () => { clearAuth(); window.location.href = "/login"; };
+  const logout = () => {
+    clearAuth();
+    window.location.href = "/login";
+  };
 
   return (
     <nav className="navbar navbar-expand-lg topbar sticky-top">
-      <div className="container-fluid">
-        {/* Nút mở offcanvas sidebar cho mobile */}
-        <button className="btn d-lg-none me-2" type="button"
-                data-bs-toggle="offcanvas" data-bs-target="#appSidebar"
-                aria-controls="appSidebar">
-          <span className="navbar-toggler-icon"></span>
+      <div className="container-fluid px-3">
+        {/* Hamburger (mobile) */}
+        <button
+          className="btn topbar-toggle d-lg-none me-2"
+          type="button"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#appSidebar"
+          aria-controls="appSidebar"
+          aria-label="Mở menu"
+        >
+          <span className="hamburger">
+            <span />
+            <span />
+            <span />
+          </span>
         </button>
 
         {/* Brand */}
-        <a className="navbar-brand topbar-brand" href="#">
-          Bệnh Viện 108 <span className="dot" />
+        <a className="navbar-brand topbar-brand d-flex align-items-center" href="#">
+          <span className="brand-dot me-2" />
+          <span>Bệnh Viện 108</span>
         </a>
 
-        <button className="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#topbarNav" aria-controls="topbarNav" aria-expanded="false">
-          <span className="navbar-toggler-icon"></span>
+        {/* Collapse (right) */}
+        <button
+          className="navbar-toggler topbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#topbarNav"
+          aria-controls="topbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span className="navbar-toggler-icon" />
         </button>
 
         <div className="collapse navbar-collapse" id="topbarNav">
-          <ul className="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+          <ul className="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center gap-2">
             {me.role && (
-              <li className="nav-item me-3">
+              <li className="nav-item">
                 <span className="role-badge">{me.role}</span>
               </li>
             )}
-            <li className="nav-item me-2 small text-secondary">
+            <li className="nav-item small text-secondary me-1">
               {me.hoTen || me.tenDangNhap || "Người dùng"}
             </li>
             <li className="nav-item">
-              <button className="btn btn-outline-secondary btn-sm" onClick={logout}>
+              <button className="btn topbar-btn" onClick={logout}>
                 Đăng xuất
               </button>
             </li>

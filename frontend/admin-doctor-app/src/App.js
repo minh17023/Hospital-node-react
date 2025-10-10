@@ -3,7 +3,6 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import { ROLES } from "./utils/auth";
 
 import Login from "./pages/Login";
-import RegisterDoctor from "./pages/RegisterDoctor";
 
 // Admin pages
 import AdminHome from "./pages/admin/AdminHome";
@@ -31,7 +30,6 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register-doctor" element={<RegisterDoctor />} />
 
       {/* Admin */}
       <Route path="/admin" element={
