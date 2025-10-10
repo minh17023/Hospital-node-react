@@ -1,9 +1,8 @@
-// src/pages/admin/Doctors.jsx
 import { useEffect, useMemo, useState } from "react";
 import client from "../../api/client";
 import Layout from "../../components/Layout";
 
-const DEFAULT_LIMIT = 12;
+const DEFAULT_LIMIT = 10;
 
 /* ==================== PAGE ==================== */
 export default function AdminDoctors() {
@@ -43,8 +42,9 @@ export default function AdminDoctors() {
 
   return (
     <Layout>
-      <div className="card">
-        <div className="card-body">
+      {/* card full-height + bảng cuộn theo CSS chung */}
+      <div className="card page-flex">
+        <div className="card-body d-flex flex-column">
           <div className="d-flex align-items-center mb-3">
             <h2 className="me-auto m-0">Quản lý bác sĩ</h2>
             <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
@@ -52,7 +52,10 @@ export default function AdminDoctors() {
             </button>
           </div>
 
-          <form className="row g-2 mb-3" onSubmit={(e) => { e.preventDefault(); setOffset(0); load(); }}>
+          <form
+            className="row g-2 mb-3"
+            onSubmit={(e) => { e.preventDefault(); setOffset(0); load(); }}
+          >
             <div className="col-md-6">
               <input
                 className="form-control"
@@ -62,69 +65,77 @@ export default function AdminDoctors() {
               />
             </div>
             <div className="col-md-2">
-              <select className="form-select" value={limit} onChange={(e) => setLimit(+e.target.value)}>
-                {[12, 20, 30, 50].map((n) => <option key={n} value={n}>{n} / trang</option>)}
-              </select>
+              <button className="btn btn-outline-secondary w-100" type="submit">Tìm kiếm</button>
             </div>
             <div className="col-md-2">
-              <button className="btn btn-outline-secondary w-100" type="submit">Tìm kiếm</button>
+              <select
+                className="form-select"
+                value={limit}
+                onChange={(e) => { setLimit(Number(e.target.value)); setOffset(0); }}
+              >
+                {[10, 12, 20, 30, 50].map(n => <option key={n} value={n}>{n}/trang</option>)}
+              </select>
             </div>
           </form>
 
-          <div className="table-responsive">
-            <table className="table table-hover align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 140 }}>Mã bác sĩ</th>
-                  <th>Họ tên</th>
-                  <th>Chuyên khoa</th>
-                  <th style={{ width: 120 }}>Phí khám</th>
-                  <th style={{ width: 110 }}>Trạng thái</th>
-                  <th style={{ width: 150 }} className="text-end">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && items.length === 0 && (
-                  <tr><td colSpan={6} className="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                )}
-                {loading && (
-                  <tr><td colSpan={6} className="py-4 text-center">
-                    <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
-                  </td></tr>
-                )}
-                {items.map((it) => (
-                  <tr key={it.maBacSi}>
-                    <td><span className="badge bg-secondary">{it.maBacSi}</span></td>
-                    <td>{it.tenBacSi || it.hoTen || "-"}</td>
-                    <td>{it.tenChuyenKhoa || it.maChuyenKhoa}</td>
-                    <td>{it.phiKham != null ? Intl.NumberFormat().format(it.phiKham) : "-"}</td>
-                    <td>
-                      {Number(it.trangThai) === 1
-                        ? <span className="badge bg-success">Đang làm</span>
-                        : <span className="badge bg-secondary">Tạm nghỉ</span>}
-                    </td>
-                    <td className="text-end">
-                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditItem(it)}>
-                        Sửa
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => setConfirmDel({ maBacSi: it.maBacSi, tenBacSi: it.tenBacSi || it.hoTen })}
-                      >
-                        Xóa
-                      </button>
-                    </td>
+          {/* Bảng – cuộn trong vùng riêng, thead sticky, hàng gọn */}
+          <div className="table-zone">
+            <div className="table-responsive table-sticky">
+              <table className="table table-hover align-middle mb-0 table-tight">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: 140 }}>Mã bác sĩ</th>
+                    <th>Họ tên</th>
+                    <th>Chuyên khoa</th>
+                    <th style={{ width: 120 }}>Phí khám</th>
+                    <th style={{ width: 110 }}>Trạng thái</th>
+                    <th style={{ width: 150 }} className="text-end">Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {!loading && items.length === 0 && (
+                    <tr><td colSpan={6} className="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
+                  )}
+                  {loading && (
+                    <tr><td colSpan={6} className="py-4 text-center">
+                      <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
+                    </td></tr>
+                  )}
+                  {items.map((it) => (
+                    <tr key={it.maBacSi}>
+                      <td><span className="badge bg-secondary">{it.maBacSi}</span></td>
+                      <td>{it.tenBacSi || it.hoTen || "-"}</td>
+                      <td className="text-nowrap">{it.tenChuyenKhoa || it.maChuyenKhoa}</td>
+                      <td className="text-nowrap">{it.phiKham != null ? Intl.NumberFormat().format(it.phiKham) : "-"}</td>
+                      <td className="text-center">
+                        {Number(it.trangThai) === 1
+                          ? <span className="badge bg-success">Đang làm</span>
+                          : <span className="badge bg-secondary">Tạm nghỉ</span>}
+                      </td>
+                      <td className="text-end text-nowrap">
+                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditItem(it)}>
+                          Sửa
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => setConfirmDel({ maBacSi: it.maBacSi, tenBacSi: it.tenBacSi || it.hoTen })}
+                        >
+                          Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="d-flex justify-content-between align-items-center">
-            <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
-            <div>
-              <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
-              <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+            {/* Pagination – ngoài vùng scroll */}
+            <div className="d-flex justify-content-between align-items-center mt-3">
+              <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
+              <div>
+                <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
+                <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+              </div>
             </div>
           </div>
         </div>
@@ -173,11 +184,18 @@ export default function AdminDoctors() {
           onClose={() => setConfirmDel(null)}
           onConfirm={async () => {
             try {
-              await client.delete(`/api/v1/doctors/${encodeURIComponent(confirmDel.maBacSi)}`.replace("/api/v1",""));
+              await client.delete(`/doctors/${encodeURIComponent(confirmDel.maBacSi)}`);
               setConfirmDel(null);
               await load();
             } catch (e) {
-              alert(e?.response?.data?.message || "Không xóa được");
+              // Thông báo thân thiện nếu vướng khóa ngoại
+              const msg = e?.response?.data?.message || "";
+              const isFK =
+                e?.response?.status === 409 ||
+                /foreign key|ràng buộc|constraint|ER_ROW_IS_REFERENCED/i.test(msg);
+              alert(isFK
+                ? "Không thể xóa vì hồ sơ bác sĩ đang được tham chiếu ở nơi khác (lịch làm việc/lịch hẹn...)."
+                : (msg || "Không xóa được"));
             }
           }}
         />
@@ -257,7 +275,10 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
       return alert("Vui lòng nhập mã nhân viên & chuyên khoa");
     }
     const payload = {
-      ...(editMode ? {} : { maNhanVien, maChuyenKhoa }),
+      // Khi tạo: cần cả mã NV; Khi sửa: không cho đổi mã NV
+      ...(editMode ? {} : { maNhanVien }),
+      // LUÔN gửi chuyên khoa để backend có thể update
+      maChuyenKhoa,
       maHocVi: emptyToNull(maHocVi),
       maHocHam: emptyToNull(maHocHam),
       bangCap: emptyToNull(bangCap),
@@ -284,7 +305,7 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
         style={{ display: "block", zIndex: 1060 }}
         onClick={onClose}
       >
-        {/* XL, centered, rộng – hạn chế phải cuộn */}
+        {/* rộng & centered */}
         <div
           className="modal-dialog modal-dialog-centered modal-xl"
           onClick={(e) => e.stopPropagation()}
@@ -295,32 +316,33 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
               <button type="button" className="btn-close" onClick={onClose} />
             </div>
 
-            {/* Không tạo scroll nội bộ */}
-            <div className="modal-body" style={{ overflow: "visible" }}>
-              {/* Hàng đầu: nhân viên + chuyên khoa */}
-              {!editMode && (
-                <div className="row g-3">
-                  <div className="col-md-6 col-xl-6">
-                    <label className="form-label small">Mã nhân viên <span className="text-danger">*</span></label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={maNhanVien}
-                      onChange={(e) => setMaNhanVien(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="col-md-6 col-xl-6">
-                    <label className="form-label small">Chuyên khoa <span className="text-danger">*</span></label>
-                    <SpecialtySelect
-                      value={maChuyenKhoa}
-                      onChange={setMaChuyenKhoa}
-                      size="sm"
-                    />
-                  </div>
+            {/* body có thể cuộn khi dài – dùng class chung modal-scroll */}
+            <div className="modal-body modal-scroll">
+              <div className="row g-3">
+                {/* Mã nhân viên: chỉ nhập được khi tạo, khi sửa thì hiển thị read-only */}
+                <div className="col-md-6 col-xl-6">
+                  <label className="form-label small">
+                    Mã nhân viên {editMode ? "" : <span className="text-danger">*</span>}
+                  </label>
+                  <input
+                    className="form-control form-control-sm"
+                    value={maNhanVien}
+                    onChange={(e) => setMaNhanVien(e.target.value)}
+                    readOnly={!!editMode}
+                    placeholder={editMode ? "Không thể sửa mã nhân viên" : ""}
+                    autoFocus={!editMode}
+                  />
                 </div>
-              )}
 
-              {/* Lưới 3 cột trên xl, 2 cột trên md – input nhỏ */}
+                {/* Chuyên khoa: luôn hiển thị để admin có thể đổi khi sửa */}
+                <div className="col-md-6 col-xl-6">
+                  <label className="form-label small">
+                    Chuyên khoa <span className="text-danger">*</span>
+                  </label>
+                  <SpecialtySelect value={maChuyenKhoa} onChange={setMaChuyenKhoa} size="sm" />
+                </div>
+              </div>
+
               <div className="row g-3 mt-1">
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Mã học vị</label>
@@ -341,29 +363,24 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Kinh nghiệm (năm)</label>
-                  <input type="number" min={0} className="form-control form-control-sm"
-                         value={kinhNghiem} onChange={(e) => setKinhNghiem(e.target.value)} />
+                  <input type="number" min={0} className="form-control form-control-sm" value={kinhNghiem} onChange={(e) => setKinhNghiem(e.target.value)} />
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Số BN tối đa / ca</label>
-                  <input type="number" min={0} className="form-control form-control-sm"
-                         value={soLuongBenhNhanToiDa} onChange={(e) => setSL(e.target.value)} />
+                  <input type="number" min={0} className="form-control form-control-sm" value={soLuongBenhNhanToiDa} onChange={(e) => setSL(e.target.value)} />
                 </div>
 
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">TG khám bình quân (phút)</label>
-                  <input type="number" min={0} className="form-control form-control-sm"
-                         value={thoiGianKhamBinhQuan} onChange={(e) => setTG(e.target.value)} />
+                  <input type="number" min={0} className="form-control form-control-sm" value={thoiGianKhamBinhQuan} onChange={(e) => setTG(e.target.value)} />
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Phí khám (VNĐ)</label>
-                  <input type="number" min={0} className="form-control form-control-sm"
-                         value={phiKham} onChange={(e) => setPhiKham(e.target.value)} />
+                  <input type="number" min={0} className="form-control form-control-sm" value={phiKham} onChange={(e) => setPhiKham(e.target.value)} />
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Ngày bắt đầu công tác</label>
-                  <input type="date" className="form-control form-control-sm"
-                         value={ngayBatDauCongTac || ""} onChange={(e) => setNgay(e.target.value)} />
+                  <input type="date" className="form-control form-control-sm" value={ngayBatDauCongTac || ""} onChange={(e) => setNgay(e.target.value)} />
                 </div>
 
                 <div className="col-md-6 col-xl-4">
@@ -375,19 +392,16 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Chuyên môn chính</label>
-                  <input className="form-control form-control-sm" value={chuyenMonChinh}
-                         onChange={(e) => setChuyenMonChinh(e.target.value)} />
+                  <input className="form-control form-control-sm" value={chuyenMonChinh} onChange={(e) => setChuyenMonChinh(e.target.value)} />
                 </div>
                 <div className="col-md-6 col-xl-4">
                   <label className="form-label small">Chuyên môn phụ</label>
-                  <input className="form-control form-control-sm" value={chuyenMonPhu}
-                         onChange={(e) => setChuyenMonPhu(e.target.value)} />
+                  <input className="form-control form-control-sm" value={chuyenMonPhu} onChange={(e) => setChuyenMonPhu(e.target.value)} />
                 </div>
 
                 <div className="col-12">
                   <label className="form-label small">Ghi chú</label>
-                  <textarea className="form-control form-control-sm" rows={2} value={ghiChu}
-                            onChange={(e) => setGhiChu(e.target.value)} />
+                  <textarea className="form-control form-control-sm" rows={2} value={ghiChu} onChange={(e) => setGhiChu(e.target.value)} />
                 </div>
               </div>
             </div>

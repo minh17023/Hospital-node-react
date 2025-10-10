@@ -3,7 +3,7 @@ import Layout from "../../components/Layout";
 import client from "../../api/client";
 
 /* ============== Helpers ============== */
-const DEFAULT_LIMIT = 8;
+const DEFAULT_LIMIT = 10;
 const num = (v) => (v == null || v === "" ? "" : Number(v));
 const truncate = (s, n = 60) => (s && s.length > n ? s.slice(0, n) + "…" : s);
 
@@ -27,7 +27,7 @@ export default function AdminClinics() {
 
   // data
   const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -141,8 +141,9 @@ export default function AdminClinics() {
 
   return (
     <Layout>
-      <div className="card">
-        <div className="card-body">
+      {/* Dùng layout chung: card chiếm chiều cao viewport, bảng cuộn trong card */}
+      <div className="card page-flex">
+        <div className="card-body d-flex flex-column">
           {/* Header */}
           <div className="d-flex align-items-center mb-3">
             <h2 className="me-auto m-0">Quản lý phòng khám</h2>
@@ -192,15 +193,6 @@ export default function AdminClinics() {
                 <option value="0">Ngưng</option>
               </select>
             </div>
-            <div className="col-md-2">
-              <select
-                className="form-select"
-                value={limit}
-                onChange={(e) => { setLimit(Number(e.target.value)); setOffset(0); }}
-              >
-                {[12, 20, 30, 50].map((n) => <option key={n} value={n}>{n} / trang</option>)}
-              </select>
-            </div>
             <div className="col-md-1 d-grid">
               <button className="btn btn-outline-secondary" type="submit">Tải</button>
             </div>
@@ -211,70 +203,70 @@ export default function AdminClinics() {
 
           {error && <div className="alert alert-danger">{error}</div>}
 
-          {/* Table */}
-          <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 130 }}>Mã phòng</th>
-                  <th>Tên phòng khám</th>
-                  <th style={{ width: 160 }}>Chuyên khoa</th>
-                  <th style={{ width: 90 }}>Tầng</th>
-                  <th style={{ width: 110 }}>Diện tích (m²)</th>
-                  <th style={{ width: 110 }}>Sức chứa</th>
-                  <th style={{ width: 220 }}>Trang bị</th>
-                  <th style={{ width: 110 }}>Trạng thái</th>
-                  <th style={{ width: 150 }} className="text-end">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {/* Bảng – scroll riêng, header sticky */}
+          <div className="table-zone">
+            <div className="table-responsive table-sticky">
+              <table className="table table-hover align-middle mb-0 table-tight">
+                <thead className="table-light">
                   <tr>
-                    <td colSpan={9} className="py-4 text-center">
-                      <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
-                    </td>
+                    <th style={{ width: 130 }}>Mã phòng</th>
+                    <th>Tên phòng khám</th>
+                    <th style={{ width: 160 }}>Chuyên khoa</th>
+                    <th style={{ width: 90 }}>Tầng</th>
+                    <th style={{ width: 110 }}>Diện tích (m²)</th>
+                    <th style={{ width: 110 }}>Sức chứa</th>
+                    <th style={{ width: 220 }}>Trang bị</th>
+                    <th style={{ width: 110 }}>Trạng thái</th>
+                    <th style={{ width: 150 }} className="text-end">Thao tác</th>
                   </tr>
-                ) : items.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center text-muted py-4">Không có dữ liệu</td></tr>
-                ) : (
-                  items.map((r) => (
-                    <tr key={r.maPhongKham}>
-                      <td><span className="badge bg-secondary">{r.maPhongKham}</span></td>
-                      <td className="text-nowrap">{r.tenPhongKham}</td>
-                      <td className="text-nowrap">{r.maChuyenKhoa || "-"}</td>
-                      <td>{r.tang ?? "-"}</td>
-                      <td className="text-nowrap">{r.dienTich != null ? r.dienTich : "-"}</td>
-                      <td>{r.sucChua != null ? r.sucChua : "-"}</td>
-                      <td title={r.trangBi || ""}>{truncate(r.trangBi || "-")}</td>
-                      <td className="text-center">
-                        {Number(r.trangThai) === 1
-                          ? <span className="badge bg-success">Hoạt động</span>
-                          : <span className="badge bg-secondary">Ngưng</span>}
-                      </td>
-                      <td className="text-end text-nowrap">
-                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditData(r)}>Sửa</button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => setConfirmDel({ maPhongKham: r.maPhongKham, tenPhongKham: r.tenPhongKham })}
-                        >
-                          Xóa
-                        </button>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="py-4 text-center">
+                        <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : items.length === 0 ? (
+                    <tr><td colSpan={9} className="text-center text-muted py-4">Không có dữ liệu</td></tr>
+                  ) : (
+                    items.map((r) => (
+                      <tr key={r.maPhongKham}>
+                        <td><span className="badge bg-secondary">{r.maPhongKham}</span></td>
+                        <td className="text-nowrap">{r.tenPhongKham}</td>
+                        <td className="text-nowrap">{r.maChuyenKhoa || "-"}</td>
+                        <td>{r.tang ?? "-"}</td>
+                        <td className="text-nowrap">{r.dienTich != null ? r.dienTich : "-"}</td>
+                        <td>{r.sucChua != null ? r.sucChua : "-"}</td>
+                        <td title={r.trangBi || ""}>{truncate(r.trangBi || "-")}</td>
+                        <td className="text-center">
+                          {Number(r.trangThai) === 1
+                            ? <span className="badge bg-success">Hoạt động</span>
+                            : <span className="badge bg-secondary">Ngưng</span>}
+                        </td>
+                        <td className="text-end text-nowrap">
+                          <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditData(r)}>Sửa</button>
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => setConfirmDel({ maPhongKham: r.maPhongKham, tenPhongKham: r.tenPhongKham })}
+                          >
+                            Xóa
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          {/* Pagination */}
-          <div className="d-flex justify-content-between align-items-center mt-3">
-            <small className="text-muted">
-              Tổng: {total} • Trang {page}/{totalPages}
-            </small>
-            <div>
-              <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
-              <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+            {/* Pagination – nằm ngoài vùng scroll */}
+            <div className="d-flex justify-content-between align-items-center mt-3">
+              <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
+              <div>
+                <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
+                <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+              </div>
             </div>
           </div>
         </div>
@@ -338,7 +330,6 @@ function ClinicModal({ title, specialties = [], data = {}, editMode = false, onC
       ghiChu: ghiChu || null,
       trangThai: Number(trangThai),
     };
-    // Nếu chế độ sửa: chỉ gửi trường thay đổi là tuỳ; backend của bạn chấp nhận patch tự do
     onSubmit(payload);
   };
 
@@ -351,11 +342,12 @@ function ClinicModal({ title, specialties = [], data = {}, editMode = false, onC
               <h5 className="modal-title">{title}</h5>
               <button type="button" className="btn-close" onClick={onClose}></button>
             </div>
-            <div className="modal-body">
+            {/* body có cuộn khi dài - dùng class chung modal-scroll nếu bạn đã thêm trong styles.css */}
+            <div className="modal-body modal-scroll">
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label">Tên phòng khám <span className="text-danger">*</span></label>
-                  <input className="form-control" value={tenPhongKham} onChange={(e) => setTenPhongKham(e.target.value)} />
+                  <input className="form-control" value={tenPhongKham} onChange={(e) => setTenPhongKham(e.target.value)} autoFocus />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Chuyên khoa</label>

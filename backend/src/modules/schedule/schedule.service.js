@@ -45,11 +45,17 @@ export async function adminList(query, ctx) {
     }
   }
 
+  // chuẩn hóa status
+  let status = query.trangThaiLamViec ?? query.status;
+    if (status === "" || status === "ALL" || status === undefined || status === null) {
+      status = undefined;
+  }
+
   return listWorkshifts({
     maBacSi,
     maPhongKham: query.maPhongKham || query.clinicCode,
     from: query.from, to: query.to,
-    trangThaiLamViec: query.trangThaiLamViec ?? query.status,
+    trangThaiLamViec: status,
     limit: query.limit ?? 50,
     offset: query.offset ?? 0,
   });

@@ -12,7 +12,7 @@ import AdminSchedules from "./pages/admin/Schedules";
 import AdminDoctors from "./pages/admin/Doctors";
 import AdminPatients from "./pages/admin/Patients";
 import AdminPayments from "./pages/admin/Payments";
-import AdminSettings from "./pages/admin/Settings";
+import AdminUsers from "./pages/admin/users";
 
 // NEW: các trang quản trị bổ sung
 import AdminSpecialties from "./pages/admin/Specialties";
@@ -81,9 +81,9 @@ export default function App() {
           <AdminPayments />
         </ProtectedRoute>
       }/>
-      <Route path="/admin/settings" element={
+      <Route path="/admin/users" element={
         <ProtectedRoute roles={[ROLES.ADMIN]}>
-          <AdminSettings />
+          <AdminUsers />
         </ProtectedRoute>
       }/>
 

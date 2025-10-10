@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Layout from "../../components/Layout";
 import client from "../../api/client";
 
-const DEFAULT_PAGE_SIZE = 8;
+const DEFAULT_PAGE_SIZE = 10;
 
 /* --- Alert nhỏ dùng chung --- */
 function AlertBanner({ visible, type = "success", message, onClose }) {
@@ -18,7 +18,7 @@ function AlertBanner({ visible, type = "success", message, onClose }) {
 export default function AdminPatients() {
   /* ===== Filters ===== */
   const [q, setQ] = useState("");
-  const [trangThai, setTrangThai] = useState(""); // "" | "1" | "0"
+  const [trangThai, setTrangThai] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -33,12 +33,12 @@ export default function AdminPatients() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   /* ===== View modal ===== */
-  const [viewing, setViewing] = useState(null); // maBenhNhan
+  const [viewing, setViewing] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   /* ===== Edit modal ===== */
-  const [editing, setEditing] = useState(null); // object
+  const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -116,8 +116,7 @@ export default function AdminPatients() {
       setEditForm({
         hoTen: p.hoTen || "",
         ngaySinh: p.ngaySinh || "",
-        gioiTinh:
-          (p.gioiTinh === "F" || p.gioiTinh === 2 || p.gioiTinh === "2") ? "F" : "M",
+        gioiTinh: (p.gioiTinh === "F" || p.gioiTinh === 2 || p.gioiTinh === "2") ? "F" : "M",
         soCCCD: p.soCCCD || "",
         soDienThoai: p.soDienThoai || "",
         email: p.email || "",
@@ -174,8 +173,41 @@ export default function AdminPatients() {
 
   return (
     <Layout>
-      <div className="card">
-        <div className="card-body">
+      {/* CSS nội tuyến để table cuộn, không tràn trang */}
+      <style>{`
+        /* chiều cao phần trên (tiêu đề, alert, filters, pagination dưới...) để trừ ra */
+        :root { --patients-header: 280px; }
+        @media (max-width: 1200px) { :root { --patients-header: 320px; } }
+
+        .page-flex {
+          display: flex;
+          flex-direction: column;
+          height: calc(100vh - 90px); /* trừ navbar/topbar ngoài Layout nếu có */
+          min-height: 0; /* quan trọng để con có thể overflow */
+        }
+        .table-zone {
+          flex: 1 1 auto;
+          min-height: 0;          /* quan trọng */
+          overflow: hidden;       /* chặn tràn */
+          display: flex;
+          flex-direction: column;
+        }
+        .table-scroll {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: auto;         /* chỉ khu vực bảng được cuộn */
+          border-radius: .25rem;
+        }
+        .table-scroll table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 1;
+          background: var(--bs-light);
+        }
+      `}</style>
+
+      <div className="card page-flex">
+        <div className="card-body d-flex flex-column" style={{ minHeight: 0 }}>
           {/* Header */}
           <div className="d-flex align-items-center mb-3">
             <h2 className="me-auto m-0">Quản lý bệnh nhân</h2>
@@ -211,118 +243,106 @@ export default function AdminPatients() {
               </select>
             </div>
             <div className="col-md-2">
-              <input
-                type="date"
-                className="form-control"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                title="Từ ngày (ngày tạo)"
-              />
+              <input type="date" className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div className="col-md-2">
-              <input
-                type="date"
-                className="form-control"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                title="Đến ngày (ngày tạo)"
-              />
+              <input type="date" className="form-control" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             <div className="col-md-1 d-grid">
               <button className="btn btn-outline-secondary" type="submit">Lọc</button>
             </div>
             <div className="col-md-1 d-grid">
-              <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>
-                Xóa
-              </button>
+              <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>Xóa</button>
             </div>
           </form>
 
-          {/* Table */}
-          <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 140 }}>Mã</th>
-                  <th>Họ tên</th>
-                  <th style={{ width: 120 }}>Ngày sinh</th>
-                  <th style={{ width: 90 }}>Giới tính</th>
-                  <th style={{ width: 140 }}>CCCD</th>
-                  <th style={{ width: 130 }}>SĐT</th>
-                  <th style={{ width: 200 }}>Email</th>
-                  <th style={{ width: 160 }}>Ngày tạo</th>
-                  <th style={{ width: 110 }}>Trạng thái</th>
-                  <th style={{ width: 170 }} className="text-end">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {/* Bảng + scroll riêng */}
+          <div className="table-zone">
+            <div className="table-scroll">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light">
                   <tr>
-                    <td colSpan={10} className="py-4 text-center">
-                      <div className="spinner-border" role="status">
-                        <span className="visually-hidden">Loading…</span>
-                      </div>
-                    </td>
+                    <th style={{ width: 140 }}>Mã</th>
+                    <th>Họ tên</th>
+                    <th style={{ width: 120 }}>Ngày sinh</th>
+                    <th style={{ width: 90 }}>Giới tính</th>
+                    <th style={{ width: 140 }}>CCCD</th>
+                    <th style={{ width: 130 }}>SĐT</th>
+                    <th style={{ width: 200 }}>Email</th>
+                    <th style={{ width: 160 }}>Ngày tạo</th>
+                    <th style={{ width: 110 }}>Trạng thái</th>
+                    <th style={{ width: 170 }} className="text-end">Thao tác</th>
                   </tr>
-                ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center text-muted py-4">Không có dữ liệu</td></tr>
-                ) : (
-                  rows.map((r) => (
-                    <tr key={r.maBenhNhan}>
-                      <td><span className="badge bg-secondary">{r.maBenhNhan}</span></td>
-                      <td>{r.hoTen}</td>
-                      <td className="text-nowrap">{r.ngaySinh || "-"}</td>
-                      <td>{(r.gioiTinh === "F" || r.gioiTinh === 2 || r.gioiTinh === "2") ? "Nữ" : "Nam"}</td>
-                      <td className="text-nowrap">{r.soCCCD || "-"}</td>
-                      <td className="text-nowrap">{r.soDienThoai || "-"}</td>
-                      <td className="text-nowrap">{r.email || "-"}</td>
-                      <td className="text-nowrap">{toDateTime(r.ngayTao)}</td>
-                      <td className="text-center">
-                        {Number(r.trangThai) === 1
-                          ? <span className="badge bg-success">Hoạt động</span>
-                          : <span className="badge bg-secondary">Ngưng</span>}
-                      </td>
-                      <td className="text-end text-nowrap">
-                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openView(r.maBenhNhan)}>Xem</button>
-                        <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => openEdit(r.maBenhNhan)}>Sửa</button>
-                        <button className="btn btn-sm btn-outline-danger" disabled={deleting} onClick={() => removeRow(r.maBenhNhan, r.hoTen)}>Xóa</button>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={10} className="py-4 text-center">
+                        <div className="spinner-border" role="status">
+                          <span className="visually-hidden">Loading…</span>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="d-flex justify-content-between align-items-center mt-3">
-            <div className="d-flex align-items-center gap-3">
-              <small className="text-muted">
-                Hiển thị {total === 0 ? 0 : (pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, total)} / {total}
-              </small>
-              <select
-                className="form-select form-select-sm"
-                style={{ width: 90 }}
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              >
-                <option value={8}>8/trang</option>
-                <option value={16}>16/trang</option>
-                <option value={24}>24/trang</option>
-              </select>
+                  ) : rows.length === 0 ? (
+                    <tr><td colSpan={10} className="text-center text-muted py-4">Không có dữ liệu</td></tr>
+                  ) : (
+                    rows.map((r) => (
+                      <tr key={r.maBenhNhan}>
+                        <td><span className="badge bg-secondary">{r.maBenhNhan}</span></td>
+                        <td>{r.hoTen}</td>
+                        <td className="text-nowrap">{r.ngaySinh || "-"}</td>
+                        <td>{(r.gioiTinh === "F" || r.gioiTinh === 2 || r.gioiTinh === "2") ? "Nữ" : "Nam"}</td>
+                        <td className="text-nowrap">{r.soCCCD || "-"}</td>
+                        <td className="text-nowrap">{r.soDienThoai || "-"}</td>
+                        <td className="text-nowrap">{r.email || "-"}</td>
+                        <td className="text-nowrap">{toDateTime(r.ngayTao)}</td>
+                        <td className="text-center">
+                          {Number(r.trangThai) === 1
+                            ? <span className="badge bg-success">Hoạt động</span>
+                            : <span className="badge bg-secondary">Ngưng</span>}
+                        </td>
+                        <td className="text-end text-nowrap">
+                          <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openView(r.maBenhNhan)}>Xem</button>
+                          <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => openEdit(r.maBenhNhan)}>Sửa</button>
+                          <button className="btn btn-sm btn-outline-danger" disabled={deleting} onClick={() => removeRow(r.maBenhNhan, r.hoTen)}>Xóa</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div>
-              <button className="btn btn-outline-secondary me-2" disabled={pageSafe <= 1} onClick={() => setPage(1)}>&laquo;</button>
-              <button className="btn btn-outline-secondary me-2" disabled={pageSafe <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Trước</button>
-              <span className="mx-1">{pageSafe}/{totalPages}</span>
-              <button className="btn btn-outline-secondary ms-2" disabled={pageSafe >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau</button>
-              <button className="btn btn-outline-secondary ms-2" disabled={pageSafe >= totalPages} onClick={() => setPage(totalPages)}>&raquo;</button>
+
+            {/* Pagination – nằm ngoài vùng scroll */}
+            <div className="d-flex justify-content-between align-items-center mt-3">
+              <div className="d-flex align-items-center gap-3">
+                <small className="text-muted">
+                  Hiển thị {total === 0 ? 0 : (pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, total)} / {total}
+                </small>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 90 }}
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                >
+                  <option value={8}>8/trang</option>
+                  <option value={16}>16/trang</option>
+                  <option value={24}>24/trang</option>
+                </select>
+              </div>
+              <div>
+                <button className="btn btn-outline-secondary me-2" disabled={pageSafe <= 1} onClick={() => setPage(1)}>&laquo;</button>
+                <button className="btn btn-outline-secondary me-2" disabled={pageSafe <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Trước</button>
+                <span className="mx-1">{pageSafe}/{totalPages}</span>
+                <button className="btn btn-outline-secondary ms-2" disabled={pageSafe >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau</button>
+                <button className="btn btn-outline-secondary ms-2" disabled={pageSafe >= totalPages} onClick={() => setPage(totalPages)}>&raquo;</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* View Modal – center + buttons center */}
+      {/* ===== Modals (giữ nguyên, chỉ căn giữa + backdrop) ===== */}
       {viewing && (
         <>
           <div className="modal fade show" style={{ display: "block" }}>
@@ -372,7 +392,6 @@ export default function AdminPatients() {
         </>
       )}
 
-      {/* Edit Modal – center + buttons center */}
       {editing && (
         <>
           <div className="modal fade show" style={{ display: "block" }}>

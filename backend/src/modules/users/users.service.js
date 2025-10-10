@@ -1,4 +1,3 @@
-// src/modules/users/users.service.js
 import { UsersModel } from "./users.model.js";
 import { AppError } from "../../core/http/error.js";
 import { pool } from "../../config/db.js";
@@ -20,19 +19,13 @@ export const UsersService = {
 
   create: (data) => UsersModel.create(data),
 
-  /**
-   * Admin: tạo user DOCTOR cho BÁC SĨ đã có (chỉ gán mã, không tạo hồ sơ bacsi)
-   */
   async createUserForExistingDoctor({ tenDangNhap, matKhauHash, email = null, maBacSi }) {
     if (!tenDangNhap || !matKhauHash || !maBacSi) {
       throw new AppError(422, "Thiếu tenDangNhap/matKhauHash/maBacSi");
     }
-
-    // bác sĩ phải tồn tại
     const [bs] = await pool.query(`SELECT 1 FROM bacsi WHERE maBacSi=? LIMIT 1`, [maBacSi]);
     if (!bs.length) throw new AppError(404, "Không tìm thấy bác sĩ");
 
-    // username/email/mabacsi không được trùng
     const existsUser = await UsersModel.findByUsername(tenDangNhap);
     if (existsUser) throw new AppError(409, "Tên đăng nhập đã tồn tại");
 
@@ -42,8 +35,38 @@ export const UsersService = {
     const linked = await UsersModel.findByMaBacSi(maBacSi);
     if (linked) throw new AppError(409, "Bác sĩ đã có tài khoản");
 
-    // tạo user & gán mã bác sĩ
     const u = await UsersModel.createDoctorUser({ tenDangNhap, matKhauHash, email, maBacSi });
-    return u; // { maUser, tenDangNhap, ... }
+    return u;
+  },
+
+  /* ===== mới thêm cho GET/LIST/PUT/DELETE ===== */
+  list: (query) => UsersModel.list(query),
+
+  async update(maUser, body = {}) {
+    // Nếu cập nhật liên kết bác sĩ: phải tồn tại và không bị trùng với user khác
+    if (body.mabacsi !== undefined) {
+      const newBS = body.mabacsi;
+      if (newBS === null || newBS === "" || newBS === 0) {
+        // cho phép gỡ link
+      } else {
+        const [bs] = await pool.query(`SELECT 1 FROM bacsi WHERE maBacSi=? LIMIT 1`, [newBS]);
+        if (!bs.length) throw new AppError(404, "Không tìm thấy bác sĩ");
+
+        const linked = await UsersModel.findByMaBacSi(newBS);
+        if (linked && String(linked.maUser) !== String(maUser)) {
+          throw new AppError(409, "Bác sĩ này đã được liên kết với tài khoản khác");
+        }
+      }
+    }
+    const rs = await UsersModel.update(maUser, body);
+    if (!rs.affected) throw new AppError(400, "Không có thay đổi");
+    return rs;
+  },
+
+  async remove(maUser) {
+    const cur = await UsersModel.findByMa(maUser);
+    if (!cur) throw new AppError(404, "Không tìm thấy user");
+    const rs = await UsersModel.remove(maUser);
+    return rs;
   },
 };

@@ -9,7 +9,7 @@ import workshiftRoutes from "./modules/workshift/workshift.routes.js";
 import scheduleRouter from "./modules/schedule/schedule.routes.js"
 import appointmentRoutes from "./modules/appointment/appointment.routes.js"
 import paymentRoutes from "./modules/payment/payment.router.js"
-
+import userRoutes from "./modules/users/users.routes.js"
 const api = Router();
 
 // /api/v1/auth/...
@@ -25,5 +25,6 @@ api.use("/", workshiftRoutes);
 api.use("/", scheduleRouter);
 api.use("/", appointmentRoutes);
 api.use("/", paymentRoutes);
+api.use("/", userRoutes);
 
 export default api;

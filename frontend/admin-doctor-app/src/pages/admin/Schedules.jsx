@@ -8,7 +8,7 @@ const fmtDate = (d) => (d ? String(d).slice(0, 10) : "-");
 const yesNo = (n) => (Number(n) === 1 ? "Hoạt động" : "Ngưng");
 const badge = (n) => (Number(n) === 1 ? "bg-success" : "bg-secondary");
 
-/* ===== Async selects (Doctor / Clinic / Shift) ===== */
+/* ===== Async fetch hook ===== */
 function useFetchList(fetcher, deps = []) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,115 +28,115 @@ function useFetchList(fetcher, deps = []) {
   return { items, loading };
 }
 
+/* ===== Dropdowns không có ô tìm ===== */
 function SelectDoctor({ value, onChange, size = "sm" }) {
-  const [q, setQ] = useState("");
   const { items, loading } = useFetchList(async () => {
-    const { data } = await client.get("/doctors", {
-      params: { keyword: q || undefined, limit: 1000, offset: 0 },
-    });
+    const { data } = await client.get("/doctors", { params: { limit: 1000, offset: 0 } });
     return data?.items || [];
-  }, [q]);
+  }, []);
   return (
-    <div className="d-flex gap-2">
-      <select
-        className={`form-select form-select-${size}`}
-        value={value || ""}
-        onChange={(e) => onChange?.(e.target.value)}
-      >
-        <option value="">-- Chọn bác sĩ --</option>
-        {items.map((d) => (
-          <option key={d.maBacSi} value={d.maBacSi}>
-            {d.maBacSi} — {d.tenBacSi || d.hoTen}
-          </option>
-        ))}
-      </select>
-      <input
-        className={`form-control form-control-${size}`}
-        placeholder="Tìm BS…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        style={{ maxWidth: 160 }}
-        disabled={loading}
-      />
-    </div>
+    <select
+      className={`form-select form-select-${size}`}
+      value={value || ""}
+      onChange={(e) => onChange?.(e.target.value)}
+      disabled={loading}
+    >
+      <option value="">-- Chọn bác sĩ --</option>
+      {items.map((d) => (
+        <option key={d.maBacSi} value={d.maBacSi}>
+          {d.tenBacSi || d.hoTen}
+        </option>
+      ))}
+    </select>
   );
 }
 
 function SelectClinic({ value, onChange, size = "sm" }) {
-  const [q, setQ] = useState("");
   const { items, loading } = useFetchList(async () => {
-    const { data } = await client.get("/clinics", {
-      params: { q: q || undefined, limit: 1000, page: 1 },
-    });
+    const { data } = await client.get("/clinics", { params: { limit: 1000, page: 1 } });
     return data?.items || [];
-  }, [q]);
+  }, []);
   return (
-    <div className="d-flex gap-2">
+    <select
+      className={`form-select form-select-${size}`}
+      value={value || ""}
+      onChange={(e) => onChange?.(e.target.value)}
+      disabled={loading}
+    >
+      <option value="">-- Chọn phòng khám --</option>
+      {items.map((c) => (
+        <option key={c.maPhongKham} value={c.maPhongKham}>
+          {c.tenPhongKham}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/* ===== Dual list các ca (không ô tìm) ===== */
+function DualListShifts({ value = [], onChange }) {
+  const { items } = useFetchList(async () => {
+    const { data } = await client.get("/workshifts", { params: { limit: 1000, offset: 0 } });
+    return (data?.items || []).map((s) => ({
+      code: s.maCaLamViec,
+      label: `${s.tenCaLamViec} (${fmtTime(s.gioVao)}–${fmtTime(s.gioRa)})`,
+    }));
+  }, []);
+
+  const [leftSel, setLeftSel] = useState([]);
+  const [rightSel, setRightSel] = useState([]);
+
+  const left = items.filter((it) => !value.includes(it.code));
+  const right = items.filter((it) => value.includes(it.code));
+
+  const moveRight = () => {
+    if (!leftSel.length) return;
+    const next = Array.from(new Set([...value, ...leftSel]));
+    onChange?.(next);
+    setLeftSel([]);
+  };
+  const moveLeft = () => {
+    if (!rightSel.length) return;
+    const next = value.filter((v) => !rightSel.includes(v));
+    onChange?.(next);
+    setRightSel([]);
+  };
+
+  return (
+    <div className="d-flex align-items-center gap-3">
       <select
-        className={`form-select form-select-${size}`}
-        value={value || ""}
-        onChange={(e) => onChange?.(e.target.value)}
+        multiple
+        className="form-select form-select-sm"
+        style={{ width: 260, height: 180 }}
+        value={leftSel}
+        onChange={(e) => setLeftSel(Array.from(e.target.selectedOptions).map((o) => o.value))}
       >
-        <option value="">-- Chọn phòng khám --</option>
-        {items.map((c) => (
-          <option key={c.maPhongKham} value={c.maPhongKham}>
-            {c.maPhongKham} — {c.tenPhongKham}
-          </option>
+        {left.map((s) => (
+          <option key={s.code} value={s.code}>{s.label}</option>
         ))}
       </select>
-      <input
-        className={`form-control form-control-${size}`}
-        placeholder="Tìm PK…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        style={{ maxWidth: 160 }}
-        disabled={loading}
-      />
+
+      <div className="d-flex flex-column gap-2">
+        <button type="button" className="btn btn-outline-primary btn-sm" onClick={moveRight}>►</button>
+        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={moveLeft}>◄</button>
+      </div>
+
+      <select
+        multiple
+        className="form-select form-select-sm"
+        style={{ width: 260, height: 180 }}
+        value={rightSel}
+        onChange={(e) => setRightSel(Array.from(e.target.selectedOptions).map((o) => o.value))}
+      >
+        {right.map((s) => (
+          <option key={s.code} value={s.code}>{s.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
 
-function SelectShift({ value, onChange, multiple = false, size = "sm" }) {
-  const [q, setQ] = useState("");
-  const { items, loading } = useFetchList(async () => {
-    const { data } = await client.get("/workshifts", {
-      params: { q: q || undefined, limit: 1000, offset: 0 },
-    });
-    return data?.items || [];
-  }, [q]);
-
-  return (
-    <div className="d-flex gap-2">
-      <select
-        multiple={multiple}
-        className={`form-select form-select-${size}`}
-        value={value || (multiple ? [] : "")}
-        onChange={(e) => {
-          if (!multiple) onChange?.(e.target.value);
-          else onChange?.(Array.from(e.target.selectedOptions).map((o) => o.value));
-        }}
-        style={multiple ? { height: 140 } : undefined}
-      >
-        {!multiple && <option value="">-- Chọn ca --</option>}
-        {items.map((s) => (
-          <option key={s.maCaLamViec} value={s.maCaLamViec}>
-            {s.maCaLamViec} — {s.tenCaLamViec} ({fmtTime(s.gioVao)}–{fmtTime(s.gioRa)})
-          </option>
-        ))}
-      </select>
-      <input
-        className={`form-control form-control-${size}`}
-        placeholder="Tìm ca…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        style={{ maxWidth: 160 }}
-        disabled={loading}
-      />
-    </div>
-  );
-}
-
-/* ====== Modals ====== */
+/* ===== Modal chrome ===== */
 function useModalChrome(onClose) {
   useEffect(() => {
     document.body.classList.add("modal-open");
@@ -149,11 +149,12 @@ function useModalChrome(onClose) {
   }, [onClose]);
 }
 
+/* ===== Create: 1 ngày, 1 hoặc nhiều ca (nhiều => generate from=to) ===== */
 function CreateModal({ onClose, onDone }) {
   useModalChrome(onClose);
   const [maBacSi, setMaBacSi] = useState("");
   const [maPhongKham, setMaPhongKham] = useState("");
-  const [maCaLamViec, setMaCaLamViec] = useState("");
+  const [shiftCodes, setShiftCodes] = useState([]);
   const [ngayLamViec, setNgayLamViec] = useState("");
   const [soLuong, setSoLuong] = useState(20);
   const [status, setStatus] = useState(1);
@@ -161,16 +162,31 @@ function CreateModal({ onClose, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!maBacSi || !maPhongKham || !maCaLamViec || !ngayLamViec) {
+    if (!maBacSi || !maPhongKham || !shiftCodes.length || !ngayLamViec) {
       return alert("Vui lòng nhập đủ bác sĩ, phòng khám, ca, ngày");
     }
     setSaving(true);
     try {
-      await client.post("/schedules", {
-        maBacSi, maPhongKham, maCaLamViec, ngayLamViec,
-        soLuongBenhNhanToiDa: Number(soLuong) || 0,
-        trangThaiLamViec: Number(status) || 0,
-      });
+      if (shiftCodes.length > 1) {
+        await client.post("/schedules/generate", {
+          maBacSi,
+          maPhongKham,
+          from: ngayLamViec,
+          to: ngayLamViec,
+          maCaLamViecList: shiftCodes,
+          soLuongBenhNhanToiDa: Number(soLuong) || 0,
+          trangThaiLamViec: Number(status) || 0,
+        });
+      } else {
+        await client.post("/schedules", {
+          maBacSi,
+          maPhongKham,
+          maCaLamViec: shiftCodes[0],
+          ngayLamViec,
+          soLuongBenhNhanToiDa: Number(soLuong) || 0,
+          trangThaiLamViec: Number(status) || 0,
+        });
+      }
       onDone?.();
       onClose?.();
     } catch (e2) {
@@ -199,7 +215,7 @@ function CreateModal({ onClose, onDone }) {
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ca làm việc *</label>
-                  <SelectShift value={maCaLamViec} onChange={setMaCaLamViec} />
+                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ngày làm việc *</label>
@@ -232,6 +248,7 @@ function CreateModal({ onClose, onDone }) {
   );
 }
 
+/* ===== Generate nhiều ca theo dải ngày ===== */
 function GenerateModal({ onClose, onDone }) {
   useModalChrome(onClose);
   const [maBacSi, setMaBacSi] = useState("");
@@ -294,7 +311,7 @@ function GenerateModal({ onClose, onDone }) {
 
                 <div className="col-md-6">
                   <label className="form-label small">Danh sách ca *</label>
-                  <SelectShift multiple value={shiftCodes} onChange={setShiftCodes} />
+                  <DualListShifts value={shiftCodes} onChange={setShiftCodes} />
                 </div>
 
                 <div className="col-md-3">
@@ -323,6 +340,215 @@ function GenerateModal({ onClose, onDone }) {
   );
 }
 
+/* ===== Page ===== */
+export default function AdminSchedules() {
+  // filters
+  const [maBacSi, setMaBacSi] = useState("");
+  const [maPhongKham, setMaPhongKham] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [status, setStatus] = useState("ALL");
+
+  // data
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // paging (cố định 12/trang)
+  const [limit] = useState(12);
+  const [offset, setOffset] = useState(0);
+  const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+
+  // modals
+  const [showCreate, setShowCreate] = useState(false);
+  const [showGen, setShowGen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data } = await client.get("/schedules", {
+        params: {
+          maBacSi: maBacSi || undefined,
+          maPhongKham: maPhongKham || undefined,
+          from: from || undefined,
+          to: to || undefined,
+          trangThaiLamViec: status === "ALL" ? undefined : Number(status),
+          limit, offset,
+        },
+      });
+      setRows(data?.items || []);
+      setTotal(Number(data?.total || 0));
+    } catch (e) {
+      alert(e?.response?.data?.message || "Không tải được lịch");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Auto load
+  useEffect(() => { load(); }, [limit, offset]); // eslint-disable-line
+  useEffect(() => {
+    setOffset(0);
+    load();
+  }, [maBacSi, maPhongKham, from, to, status]);
+
+  const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
+  const prev = () => setOffset((o) => Math.max(0, o - limit));
+
+  return (
+    <Layout>
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex align-items-center mb-3">
+            <h2 className="me-auto m-0">Quản lý lịch làm việc</h2>
+            <div className="d-flex gap-2">
+              <button className="btn btn-outline-secondary" onClick={() => setShowGen(true)}>Generate</button>
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Thêm lịch</button>
+            </div>
+          </div>
+
+          {/* Filters (không có nút tải, không ô tìm BS/PK) */}
+          <div className="row g-2 mb-3">
+            <div className="col-lg-3 col-md-6">
+              <SelectDoctor value={maBacSi} onChange={setMaBacSi} />
+            </div>
+            <div className="col-lg-3 col-md-6">
+              <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
+            </div>
+            <div className="col-lg-2 col-md-4">
+              <input type="date" className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="col-lg-2 col-md-4">
+              <input type="date" className="form-control" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            <div className="col-lg-2 col-md-4">
+              <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="ALL">Tất cả</option>
+                <option value="1">Hoạt động</option>
+                <option value="0">Ngưng</option>
+              </select>
+            </div>
+            <div className="col-12 d-flex">
+              <button
+                className="btn btn-outline-dark ms-auto"
+                type="button"
+                onClick={() => { setMaBacSi(""); setMaPhongKham(""); setFrom(""); setTo(""); setStatus("ALL"); }}
+              >
+                Xóa lọc
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="table-responsive">
+            <table className="table table-hover align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th style={{ width: 130 }}>Mã lịch</th>
+                  <th style={{ minWidth: 220 }}>Bác sĩ</th>
+                  <th style={{ minWidth: 220 }}>Phòng khám</th>
+                  <th style={{ minWidth: 240 }}>Ca</th>
+                  <th style={{ width: 120 }}>Ngày</th>
+                  <th className="text-center" style={{ width: 110 }}>Đã đặt / Tối đa</th>
+                  <th style={{ width: 120 }}>Trạng thái</th>
+                  <th style={{ width: 150 }} className="text-end">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={8} className="py-4 text-center">
+                    <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
+                  </td></tr>
+                )}
+                {!loading && rows.length === 0 && (
+                  <tr><td colSpan={8} className="py-4 text-center text-muted">Chưa có dữ liệu</td></tr>
+                )}
+                {rows.map((r) => (
+                  <tr key={r.maLichLamViec}>
+                    <td><span className="badge bg-secondary">{r.maLichLamViec}</span></td>
+                    <td className="text-nowrap">{r.tenBacSi}</td>
+                    <td className="text-nowrap">{r.tenPhongKham}</td>
+                    <td className="text-nowrap">
+                      {r.tenCaLamViec} ({fmtTime(r.gioVao)}–{fmtTime(r.gioRa)})
+                    </td>
+                    <td className="text-nowrap">{fmtDate(r.ngayLamViec)}</td>
+                    <td className="text-center">{r.soLuongDaDangKy}/{r.soLuongBenhNhanToiDa}</td>
+                    <td><span className={`badge ${badge(r.trangThaiLamViec)}`}>{yesNo(r.trangThaiLamViec)}</span></td>
+                    <td className="text-end">
+                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditing(r)}>Sửa</button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDel(r)}>Xóa</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="d-flex justify-content-between align-items-center">
+            <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
+            <div>
+              <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
+              <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onDone={load} />}
+      {showGen && <GenerateModal onClose={() => setShowGen(false)} onDone={load} />}
+      {editing && (
+        <EditModal
+          row={editing}
+          onClose={() => setEditing(null)}
+          onDone={load}
+        />
+      )}
+
+      {confirmDel && (
+        <>
+          <div className="modal fade show" style={{ display: "block" }} onClick={() => setConfirmDel(null)}>
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Xác nhận</h5>
+                  <button className="btn-close" onClick={() => setConfirmDel(null)} />
+                </div>
+                <div className="modal-body">
+                  Xóa lịch #{confirmDel.maLichLamViec}? (chỉ xóa khi chưa ai đặt)
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setConfirmDel(null)}>Hủy</button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={async () => {
+                      try {
+                        await client.delete(`/schedules/${encodeURIComponent(confirmDel.maLichLamViec)}`);
+                        setConfirmDel(null);
+                        await load();
+                      } catch (e) {
+                        alert(e?.response?.data?.message || "Không xóa được");
+                      }
+                    }}
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" onClick={() => setConfirmDel(null)} />
+        </>
+      )}
+    </Layout>
+  );
+}
+
+/* ===== Edit modal (giữ nguyên logic, chỉ đọc tên thay vì mã) ===== */
 function EditModal({ row, onClose, onDone }) {
   useModalChrome(onClose);
   const [maPhongKham, setMaPhongKham] = useState(row.maPhongKham);
@@ -361,7 +587,7 @@ function EditModal({ row, onClose, onDone }) {
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label small">Bác sĩ</label>
-                  <input className="form-control form-control-sm" value={`${row.maBacSi} — ${row.tenBacSi || ""}`} readOnly />
+                  <input className="form-control form-control-sm" value={row.tenBacSi || ""} readOnly />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Phòng khám</label>
@@ -369,7 +595,14 @@ function EditModal({ row, onClose, onDone }) {
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ca làm việc</label>
-                  <SelectShift value={maCaLamViec} onChange={setMaCaLamViec} />
+                  <select
+                    className="form-select form-select-sm"
+                    value={maCaLamViec}
+                    onChange={(e) => setMaCaLamViec(e.target.value)}
+                  >
+                    {/* đơn giản hóa: hiển thị lại tên hiện tại + yêu cầu chọn ở trang thêm nếu muốn đổi */}
+                    <option value={row.maCaLamViec}>{row.tenCaLamViec}</option>
+                  </select>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label small">Ngày làm việc</label>
@@ -399,211 +632,5 @@ function EditModal({ row, onClose, onDone }) {
       </div>
       <div className="modal-backdrop fade show" onClick={onClose} />
     </>
-  );
-}
-
-/* ===== Page ===== */
-export default function AdminSchedules() {
-  // filters
-  const [maBacSi, setMaBacSi] = useState("");
-  const [maPhongKham, setMaPhongKham] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [status, setStatus] = useState("ALL");
-
-  // data
-  const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-
-  // paging
-  const [limit, setLimit] = useState(12);
-  const [offset, setOffset] = useState(0);
-  const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
-
-  // modals
-  const [showCreate, setShowCreate] = useState(false);
-  const [showGen, setShowGen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [confirmDel, setConfirmDel] = useState(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const { data } = await client.get("/schedules", {
-        params: {
-          maBacSi: maBacSi || undefined,
-          maPhongKham: maPhongKham || undefined,
-          from: from || undefined,
-          to: to || undefined,
-          trangThaiLamViec: status === "ALL" ? undefined : Number(status),
-          limit, offset,
-        },
-      });
-      setRows(data?.items || []);
-      setTotal(Number(data?.total || 0));
-    } catch (e) {
-      alert(e?.response?.data?.message || "Không tải được lịch");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [limit, offset]); // eslint-disable-line
-
-  const submitFilter = async (e) => {
-    e.preventDefault();
-    setOffset(0);
-    await load();
-  };
-
-  const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
-  const prev = () => setOffset((o) => Math.max(0, o - limit));
-
-  return (
-    <Layout>
-      <div className="card">
-        <div className="card-body">
-          <div className="d-flex align-items-center mb-3">
-            <h2 className="me-auto m-0">Quản lý lịch làm việc</h2>
-            <div className="d-flex gap-2">
-              <button className="btn btn-outline-secondary" onClick={() => setShowGen(true)}>Generate</button>
-              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Thêm lịch</button>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <form className="row g-2 mb-3" onSubmit={submitFilter}>
-            <div className="col-lg-3 col-md-6">
-              <SelectDoctor value={maBacSi} onChange={setMaBacSi} />
-            </div>
-            <div className="col-lg-3 col-md-6">
-              <SelectClinic value={maPhongKham} onChange={setMaPhongKham} />
-            </div>
-            <div className="col-lg-2 col-md-4">
-              <input type="date" className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </div>
-            <div className="col-lg-2 col-md-4">
-              <input type="date" className="form-control" value={to} onChange={(e) => setTo(e.target.value)} />
-            </div>
-            <div className="col-lg-2 col-md-4">
-              <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="ALL">Tất cả</option>
-                <option value="1">Hoạt động</option>
-                <option value="0">Ngưng</option>
-              </select>
-            </div>
-            <div className="col-12 d-flex gap-2">
-              <button className="btn btn-outline-secondary" type="submit">Tải dữ liệu</button>
-              <button className="btn btn-outline-dark" type="button" onClick={() => {
-                setMaBacSi(""); setMaPhongKham(""); setFrom(""); setTo(""); setStatus("ALL"); setOffset(0); load();
-              }}>Xóa lọc</button>
-              <div className="ms-auto d-flex gap-2">
-                <select className="form-select" style={{ width: 120 }}
-                        value={limit} onChange={(e) => { setLimit(+e.target.value); setOffset(0); }}>
-                  {[12, 20, 30, 50].map(n => <option key={n} value={n}>{n} / trang</option>)}
-                </select>
-              </div>
-            </div>
-          </form>
-
-          {/* Table */}
-          <div className="table-responsive">
-            <table className="table table-hover align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 130 }}>Mã lịch</th>
-                  <th>Bác sĩ</th>
-                  <th>Phòng khám</th>
-                  <th>Ca</th>
-                  <th>Ngày</th>
-                  <th className="text-center" style={{ width: 110 }}>Đã đặt / Tối đa</th>
-                  <th style={{ width: 120 }}>Trạng thái</th>
-                  <th style={{ width: 150 }} className="text-end">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr><td colSpan={8} className="py-4 text-center">
-                    <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
-                  </td></tr>
-                )}
-                {!loading && rows.length === 0 && (
-                  <tr><td colSpan={8} className="py-4 text-center text-muted">Chưa có dữ liệu</td></tr>
-                )}
-                {rows.map((r) => (
-                  <tr key={r.maLichLamViec}>
-                    <td><span className="badge bg-secondary">{r.maLichLamViec}</span></td>
-                    <td className="text-nowrap">{r.maBacSi} — {r.tenBacSi}</td>
-                    <td className="text-nowrap">{r.maPhongKham} — {r.tenPhongKham}</td>
-                    <td className="text-nowrap">
-                      {r.maCaLamViec} — {r.tenCaLamViec} ({fmtTime(r.gioVao)}–{fmtTime(r.gioRa)})
-                    </td>
-                    <td className="text-nowrap">{fmtDate(r.ngayLamViec)}</td>
-                    <td className="text-center">{r.soLuongDaDangKy}/{r.soLuongBenhNhanToiDa}</td>
-                    <td><span className={`badge ${badge(r.trangThaiLamViec)}`}>{yesNo(r.trangThaiLamViec)}</span></td>
-                    <td className="text-end">
-                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditing(r)}>Sửa</button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDel(r)}>Xóa</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="d-flex justify-content-between align-items-center">
-            <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
-            <div>
-              <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
-              <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Modals */}
-      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onDone={load} />}
-      {showGen && <GenerateModal onClose={() => setShowGen(false)} onDone={load} />}
-      {editing && <EditModal row={editing} onClose={() => setEditing(null)} onDone={load} />}
-
-      {confirmDel && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} onClick={() => setConfirmDel(null)}>
-            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Xác nhận</h5>
-                  <button className="btn-close" onClick={() => setConfirmDel(null)} />
-                </div>
-                <div className="modal-body">
-                  Xóa lịch #{confirmDel.maLichLamViec}? (chỉ xóa khi chưa ai đặt)
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setConfirmDel(null)}>Hủy</button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={async () => {
-                      try {
-                        await client.delete(`/schedules/${encodeURIComponent(confirmDel.maLichLamViec)}`);
-                        setConfirmDel(null);
-                        await load();
-                      } catch (e) {
-                        alert(e?.response?.data?.message || "Không xóa được");
-                      }
-                    }}
-                  >
-                    Xóa
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" onClick={() => setConfirmDel(null)} />
-        </>
-      )}
-    </Layout>
   );
 }

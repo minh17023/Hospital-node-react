@@ -1,4 +1,3 @@
-// src/pages/admin/Specialties.jsx
 import { useEffect, useMemo, useState } from "react";
 import client from "../../api/client";
 import Layout from "../../components/Layout";
@@ -33,7 +32,6 @@ export default function AdminSpecialties() {
     try {
       const { data } = await client.get("/specialties");
       setAllItems(data.items || []);
-      // reset phân trang khi reload
       setPage(1);
     } catch (e) {
       console.error(e);
@@ -53,7 +51,9 @@ export default function AdminSpecialties() {
   return (
     <Layout>
       <div className="card">
-        <div className="card-body">
+        {/* card-body dùng layout co giãn theo chiều dọc */}
+        <div className="card-body page-flex">
+          {/* Header */}
           <div className="d-flex align-items-center mb-3">
             <h2 className="me-auto m-0">Quản lý chuyên khoa</h2>
             <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
@@ -61,8 +61,9 @@ export default function AdminSpecialties() {
             </button>
           </div>
 
+          {/* Filters */}
           <form
-            className="row g-2 mb-3"
+            className="row g-2 mb-2 filters"
             onSubmit={(e) => { e.preventDefault(); setPage(1); }}
           >
             <div className="col-md-6">
@@ -73,85 +74,98 @@ export default function AdminSpecialties() {
                 onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
               />
             </div>
-            <div className="col-md-2">
-              <select
-                className="form-select"
-                value={limit}
-                onChange={(e) => { setLimit(+e.target.value); setPage(1); }}
-              >
-                {[8, 12, 20, 30, 50].map((n) => (
-                  <option key={n} value={n}>{n} / trang</option>
-                ))}
-              </select>
-            </div>
           </form>
 
-          <div className="table-responsive">
-            <table className="table table-hover align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 120 }}>Mã CK</th>
-                  <th>Tên chuyên khoa</th>
-                  <th style={{ width: 150 }}>Phòng khám</th>
-                  <th style={{ width: 120 }} className="text-end">Phí khám</th>
-                  <th style={{ width: 120 }} className="text-center">TG khám (p)</th>
-                  <th style={{ width: 110 }} className="text-center">Số bác sĩ</th>
-                  <th style={{ width: 110 }} className="text-center">Trạng thái</th>
-                  <th style={{ width: 140 }} className="text-end">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && items.list.length === 0 && (
-                  <tr><td colSpan={8} className="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                )}
-                {loading && (
-                  <tr><td colSpan={8} className="py-4 text-center">
-                    <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
-                  </td></tr>
-                )}
-                {items.list.map((it) => (
-                  <tr key={it.maChuyenKhoa}>
-                    <td><span className="badge bg-secondary">{it.maChuyenKhoa}</span></td>
-                    <td>
-                      <div className="fw-semibold">{it.tenChuyenKhoa}</div>
-                      {it.moTa ? <small className="text-muted">{it.moTa}</small> : null}
-                    </td>
-                    <td>{it.phongKham || "-"}</td>
-                    <td className="text-end">
-                      {it.phiKham != null ? Intl.NumberFormat().format(it.phiKham) : "-"}
-                    </td>
-                    <td className="text-center">{it.thoiGianKhamBinhQuan ?? "-"}</td>
-                    <td className="text-center">{it.soBacSi}</td>
-                    <td className="text-center">
-                      {Number(it.trangThai) === 1
-                        ? <span className="badge bg-success">Hoạt động</span>
-                        : <span className="badge bg-secondary">Ẩn</span>}
-                    </td>
-                    <td className="text-end">
-                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setEditItem(it)}>
-                        Sửa
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => setConfirmDel({ maChuyenKhoa: it.maChuyenKhoa, ten: it.tenChuyenKhoa })}
-                      >
-                        Xóa
-                      </button>
-                    </td>
+          {/* Bảng trong vùng scroll, header sticky */}
+          <div className="table-zone">
+            <div className="table-responsive">
+              <table className="table table-hover align-middle table-sticky table-tight mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: 120 }}>Mã CK</th>
+                    <th>Tên chuyên khoa</th>
+                    <th style={{ width: 150 }}>Phòng khám</th>
+                    <th style={{ width: 120 }} className="text-end">Phí khám</th>
+                    <th style={{ width: 120 }} className="text-center">TG khám (p)</th>
+                    <th style={{ width: 110 }} className="text-center">Số bác sĩ</th>
+                    <th style={{ width: 110 }} className="text-center">Trạng thái</th>
+                    <th style={{ width: 140 }} className="text-end">Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {!loading && items.list.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="text-center text-muted py-4">
+                        Chưa có dữ liệu
+                      </td>
+                    </tr>
+                  )}
+                  {loading && (
+                    <tr>
+                      <td colSpan={8} className="py-4 text-center">
+                        <div className="spinner-border" role="status">
+                          <span className="visually-hidden">Loading…</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {items.list.map((it) => (
+                    <tr key={it.maChuyenKhoa}>
+                      <td><span className="badge bg-secondary">{it.maChuyenKhoa}</span></td>
+                      <td>
+                        <div className="fw-semibold">{it.tenChuyenKhoa}</div>
+                        {it.moTa ? <small className="text-muted">{it.moTa}</small> : null}
+                      </td>
+                      <td>{it.phongKham || "-"}</td>
+                      <td className="text-end">
+                        {it.phiKham != null ? Intl.NumberFormat().format(it.phiKham) : "-"}
+                      </td>
+                      <td className="text-center">{it.thoiGianKhamBinhQuan ?? "-"}</td>
+                      <td className="text-center">{it.soBacSi}</td>
+                      <td className="text-center">
+                        {Number(it.trangThai) === 1
+                          ? <span className="badge bg-success">Hoạt động</span>
+                          : <span className="badge bg-secondary">Ẩn</span>}
+                      </td>
+                      <td className="text-end">
+                        <button
+                          className="btn btn-sm btn-outline-primary me-2"
+                          onClick={() => setEditItem(it)}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => setConfirmDel({ maChuyenKhoa: it.maChuyenKhoa, ten: it.tenChuyenKhoa })}
+                        >
+                          Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* pagination */}
-          <div className="d-flex justify-content-between align-items-center">
-            <small className="text-muted">Tổng: {items.total} • Trang {page}/{totalPages}</small>
+          {/* Pagination – luôn nằm dưới cùng card nhờ page-flex */}
+          <div className="d-flex justify-content-between align-items-center mt-2">
+            <small className="text-muted">
+              Tổng: {items.total} • Trang {page}/{totalPages}
+            </small>
             <div>
-              <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <button
+                className="btn btn-outline-secondary me-2"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
                 ← Trước
               </button>
-              <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              <button
+                className="btn btn-outline-secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
                 Sau →
               </button>
             </div>
@@ -286,8 +300,8 @@ function SpecialtyModal({ title, data = {}, editMode = false, onClose, onSubmit 
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Hủy</button>
+            <div className="modal-footer justify-content-center">
+              <button type="button" className="btn btn-outline-secondary" onClick={onClose}>Hủy</button>
               <button type="submit" className="btn btn-primary">{editMode ? "Lưu thay đổi" : "Tạo chuyên khoa"}</button>
             </div>
           </form>

@@ -72,3 +72,45 @@ html, body, #root { height: 100%; overflow: hidden; }
 
 /* Nhỏ tiện ích */
 .text-brand{ color: var(--accent) !important; }
+
+/* ==== Layout cố định chiều cao trang + vùng bảng scroll ==== */
+
+/* Card-body co giãn theo chiều dọc, chiếm vừa khung nhìn */
+.page-flex {
+  display: flex;
+  flex-direction: column;
+  /* Điều chỉnh con số này để khớp header/sidebar của app bạn */
+  height: calc(100vh - 90px);
+  min-height: 0; /* quan trọng để cho phép con bên trong overflow */
+}
+
+/* Vùng lọc + actions ở trên, tự nhiên */
+.page-flex .filters {
+  margin-bottom: .75rem;
+}
+
+/* Vùng bảng scroll */
+.table-zone {
+  flex: 1 1 auto;       /* chiếm toàn bộ phần còn lại */
+  min-height: 0;        /* cho phép overflow */
+  overflow: auto;       /* scroll vertical khi cần */
+  border-radius: .25rem;
+}
+
+/* Header bảng sticky */
+.table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bs-light);
+}
+
+/* Bớt khoảng trống dưới */
+.card { margin-bottom: 0; }
+.card-body { padding-bottom: .75rem; }
+
+/* Tùy chọn: co bớt padding hàng, bảng gọn hơn */
+.table-tight td, .table-tight th {
+  padding-top: .5rem;
+  padding-bottom: .5rem;
+}

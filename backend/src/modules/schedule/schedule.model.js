@@ -73,14 +73,18 @@ export async function listWorkshifts({
   if (maPhongKham)     { conds.push("llv.maPhongKham = ?");      vals.push(String(maPhongKham)); }
   if (from)            { conds.push("llv.ngayLamViec >= ?");     vals.push(from); }
   if (to)              { conds.push("llv.ngayLamViec <= ?");     vals.push(to); }
-  if (trangThaiLamViec !== undefined && trangThaiLamViec !== null) {
-    conds.push("llv.trangThaiLamViec = ?"); vals.push(Number(trangThaiLamViec));
+  if (trangThaiLamViec !== undefined && trangThaiLamViec !== null &&
+     trangThaiLamViec !== "" && trangThaiLamViec !== "ALL" &&
+    Number.isFinite(Number(trangThaiLamViec))) {
+    conds.push("llv.trangThaiLamViec = ?");
+    vals.push(Number(trangThaiLamViec));
   }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
   const baseSelect = `
     FROM ${T} llv
     JOIN bacsi b       ON b.maBacSi       = llv.maBacSi
+    JOIN nhanvien nv   ON nv.maNhanVien   = b.maNhanVien
     JOIN phongkham pk  ON pk.maPhongKham  = llv.maPhongKham
     JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
     ${where}
@@ -94,7 +98,7 @@ export async function listWorkshifts({
   const [rows] = await pool.query(
     `SELECT
       llv.maLichLamViec,
-      llv.maBacSi, b.tenBacSi,
+      llv.maBacSi, nv.hoTen AS tenBacSi,
       llv.maPhongKham, pk.tenPhongKham,
       llv.maCaLamViec, clv.tenCaLamViec, clv.gioVao, clv.gioRa,
       llv.ngayLamViec,

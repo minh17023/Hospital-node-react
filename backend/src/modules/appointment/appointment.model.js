@@ -280,7 +280,7 @@ LEFT JOIN bacsi      bs ON bs.maBacSi      = lh.maBacSi
 LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
 LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
     ${whereSql}
- ORDER BY lh.ngayHen DESC, lh.gioHen DESC
+ ORDER BY lh.maLichHen DESC, lh.gioHen DESC
  LIMIT ? OFFSET ?`,
     [...params, Number(limit), Number(offset)]
   );

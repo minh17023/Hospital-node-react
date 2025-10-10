@@ -12,8 +12,6 @@ r.get("/doctors/by-user/:maUser", DoctorController.getByUser);
 r.get("/doctors/:maBacSi", DoctorController.get);
 r.get("/specialties/:maChuyenKhoa/doctors", DoctorController.listBySpecialty);
 
-
-
 // Admin/Doctor
 r.post("/doctors", authGuard(true), requireRole(ROLES.ADMIN), DoctorController.create);
 r.put("/doctors/:maBacSi", authGuard(true), requireRole(ROLES.ADMIN, ROLES.DOCTOR), DoctorController.update);

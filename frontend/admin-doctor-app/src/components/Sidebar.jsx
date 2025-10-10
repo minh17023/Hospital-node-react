@@ -20,7 +20,7 @@ function MenuList({ role }) {
     { to: "/admin/clinics",        label: "Phòng khám" },   
     { to: "/admin/shifts",         label: "Ca làm việc" },   
     { to: "/admin/payments",       label: "Thanh toán" },
-    { to: "/admin/settings",       label: "Cấu hình" },
+    { to: "/admin/users",          label: "Người dùng" },
   ];
 
   const doctorMenu = [
