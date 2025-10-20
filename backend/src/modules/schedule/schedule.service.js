@@ -47,8 +47,8 @@ export async function adminList(query, ctx) {
 
   // chuẩn hóa status
   let status = query.trangThaiLamViec ?? query.status;
-    if (status === "" || status === "ALL" || status === undefined || status === null) {
-      status = undefined;
+  if (status === "" || status === "ALL" || status === undefined || status === null) {
+    status = undefined;
   }
 
   return listWorkshifts({
@@ -61,15 +61,35 @@ export async function adminList(query, ctx) {
   });
 }
 
-/** /schedules/my — chỉ Doctor dùng */
+/** /schedules/my — bây giờ trả TẤT CẢ lịch của bác sĩ (không phân trang) */
 export async function listMy(query, ctx) {
+  // Chỉ cho bác sĩ dùng
   if (!isDoctor(ctx)) throw new AppError(403, "Chỉ dành cho bác sĩ");
+
+  // Lấy mã bác sĩ từ query (FE gửi từ localStorage)
+  const requested = String(query.maBacSi || query.doctorCode || "").trim();
+  if (!requested) throw new AppError(400, "Thiếu maBacSi");
+
+  // Bắt buộc khớp với tài khoản đang đăng nhập
+  if (String(requested) !== String(ctx.maBacSi)) {
+    throw new AppError(403, "Mã bác sĩ không khớp với người dùng hiện tại");
+  }
+
+  // Chuẩn hóa trạng thái (tuỳ chọn)
+  let status = query.trangThaiLamViec ?? query.status;
+  if (status === "" || status === "ALL" || status === undefined || status === null) {
+    status = undefined;
+  }
+
+  // Trả tất cả lịch trong khoảng lọc (không phân trang)
+  // Nếu cần, bạn có thể giới hạn cứng ở mức an toàn, ví dụ 5000
   return listWorkshifts({
-    maBacSi: ctx.maBacSi,
-    from: query.from, to: query.to,
-    trangThaiLamViec: query.trangThaiLamViec ?? query.status,
-    limit: query.limit ?? 50,
-    offset: query.offset ?? 0,
+    maBacSi: requested,
+    from: query.from,
+    to: query.to,
+    trangThaiLamViec: status,
+    limit: 5000,   // trả về "tất cả" trong khoảng thời gian
+    offset: 0,
   });
 }
 
@@ -115,9 +135,8 @@ export async function adminGenerate(body, ctx) {
 export async function adminUpdate(maLichLamViec, body, ctx) {
   // Nếu Doctor: chỉ sửa ca của mình và ràng buộc an toàn
   if (isDoctor(ctx)) {
-    const own = await listWorkshifts({ maBacSi: ctx.maBacSi, limit: 1, offset: 0 }); // chỉ cần kiểm tra quyền
-    const allMine = await listWorkshifts({ maBacSi: ctx.maBacSi, limit: 500, offset: 0 });
-    const cur = (allMine.items || []).find(x => String(x.maLichLamViec) === String(maLichLamViec));
+    const mine = await listWorkshifts({ maBacSi: ctx.maBacSi, limit: 500, offset: 0 });
+    const cur = (mine.items || []).find(x => String(x.maLichLamViec) === String(maLichLamViec));
     if (!cur) throw new AppError(404, "Không tìm thấy ca của bạn");
 
     if (body.maBacSi && String(body.maBacSi) !== String(ctx.maBacSi))

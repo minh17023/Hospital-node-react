@@ -29,9 +29,16 @@ export const WorkshiftController = {
     } catch (e) { next(e); }
   },
 
+  /** /schedules/my — giờ trả TẤT CẢ lịch của bác sĩ */
   async listMy(req, res, next) {
     try {
-      const ctx = { role: req.user?.role, maBacSi: req.user?.maBacSi, maUser: req.user?.maUser, kind: req.user?.kind };
+      const ctx = {
+        role: req.user?.role,
+        maBacSi: req.user?.maBacSi,
+        maUser: req.user?.maUser,
+        kind: req.user?.kind
+      };
+      // query phải có maBacSi
       const rs = await svc.listMy(req.query || {}, ctx);
       res.json(rs); // { items, total }
     } catch (e) { next(e); }

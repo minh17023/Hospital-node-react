@@ -26,7 +26,7 @@ function MenuList({ role }) {
   const doctorMenu = [
     { to: "/doctor", label: "Bảng điều khiển" },
     { to: "/doctor/my-appointments", label: "Lịch hẹn của tôi" },
-    { to: "/doctor/my-schedule", label: "Ca làm việc của tôi" },
+    { to: "/doctor/my-schedule", label: "Lịch làm việc của tôi" },
     { to: "/doctor/patients", label: "Bệnh nhân (xem)" },
     { to: "/doctor/profile", label: "Hồ sơ" },
   ];

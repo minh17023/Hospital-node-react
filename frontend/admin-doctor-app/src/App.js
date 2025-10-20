@@ -17,7 +17,6 @@ import AdminUsers from "./pages/admin/users";
 import AdminSpecialties from "./pages/admin/Specialties";
 import AdminClinics from "./pages/admin/Clinics";
 import AdminShifts from "./pages/admin/Shifts";
-import AdminWebhooks from "./pages/admin/Webhooks";
 
 // Doctor pages
 import DoctorHome from "./pages/doctor/DoctorHome";
