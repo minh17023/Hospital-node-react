@@ -27,6 +27,21 @@ const formatDateVN = (d) => {
   return `${dd}/${m}/${y}`;
 };
 
+/* ===== Chuẩn hoá thanh toán/đơn hàng ===== */
+const getPaymentId = (p) =>
+  p?.id || p?.maDonHang || p?.ma || p?.code || p?.orderId || null;
+
+const isPaidPayment = (p) => {
+  const s = String(p?.status || "").toUpperCase();
+  return (
+    s === "PAID" || s === "COMPLETED" || s === "SUCCESS" ||
+    Number(p?.trangThai) === 1 || !!p?.paidAt
+  );
+};
+
+const isPaidAppt = (a) =>
+  Number(a?.trangThai) === 2 || Number(a?.thanhToan) === 1 || Number(a?.daThanhToan) === 1;
+
 export default function AppointmentStep() {
   const { mode } = useParams(); // "bhyt" | "service" | "booking" (tham chiếu UI)
   const navigate = useNavigate();
@@ -41,7 +56,7 @@ export default function AppointmentStep() {
 
   // payment states
   const [payInitLoading, setPayInitLoading] = useState(true);
-  const [payment, setPayment] = useState(null);   // { id, status, amount, qrUrl, transferContent, paidAt, expireAt }
+  const [payment, setPayment] = useState(null);   // { id/maDonHang, status/trangThai, amount, qrUrl, transferContent, paidAt, expireAt }
   const [paid, setPaid] = useState(false);
   const [expired, setExpired] = useState(false);
   const [countdown, setCountdown] = useState("--:--");
@@ -93,8 +108,7 @@ export default function AppointmentStep() {
     const ma = appt?.maLichHen || appt?.idLichHen;
     if (!ma) return;
 
-    if (Number(appt?.trangThai) === 2) {
-      // Đã thanh toán/đăng ký hoàn tất (server authority)
+    if (isPaidAppt(appt)) { // ✅ linh hoạt nhiều kiểu cờ thanh toán từ server
       setPaid(true);
       setPayment(null);
       setPayInitLoading(false);
@@ -107,7 +121,7 @@ export default function AppointmentStep() {
 
     startPayment(ma);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appt?.maLichHen, appt?.idLichHen, appt?.trangThai]);
+  }, [appt?.maLichHen, appt?.idLichHen, appt?.trangThai, appt?.thanhToan, appt?.daThanhToan]);
 
   async function startPayment(maLichHen) {
     // reset
@@ -126,19 +140,41 @@ export default function AppointmentStep() {
 
       // ép hạn client 3' nếu server không có expireAt
       const clientExpireAt = new Date(Date.now() + 3 * 60 * 1000).toISOString();
-      const merged = { ...data, expireAt: data?.expireAt || clientExpireAt };
+      const mergedRaw = { ...data };
+      const merged = { ...mergedRaw, expireAt: mergedRaw?.expireAt || clientExpireAt };
+
+      // Chuẩn hoá id/maDonHang
+      const paymentId = getPaymentId(merged);
+      if (!paymentId) {
+        throw new Error("Thiếu mã đơn thanh toán để theo dõi.");
+      }
+      merged.id = paymentId; // đặt lại id để code phía dưới luôn dùng được
 
       setPayment(merged);
+
+      // Nếu ở bước tạo mà server đã báo trangThai = 1 (hoặc paidAt/status) ⇒ đánh dấu paid ngay
+      if (isPaidPayment(merged)) {
+        setPaid(true);
+        setPayInitLoading(false);
+        // refresh appointment để đồng bộ cuối cùng
+        try {
+          const rs2 = await client.get(`/appointments/${maLichHen}`);
+          setAppt(rs2?.data);
+        } catch {}
+        return;
+      }
+
       startCountdown(merged.expireAt);
 
-      // Poll GET /payments/:maDonHang
+      // Poll GET /payments/:id|maDonHang
       pollRef.current = setInterval(async () => {
         try {
-          const rs = await client.get(`/payments/${merged.id}`);
+          const rs = await client.get(`/payments/${paymentId}`);
           const p = rs?.data || {};
-          setPayment(prev => ({ ...(prev || {}), status: p.status, paidAt: p.paidAt }));
+          // merge toàn bộ để giữ paidAt/trangThai/qrUrl mới nhất
+          setPayment(prev => ({ ...(prev || {}), ...p }));
 
-          if (p.status === "PAID") {
+          if (isPaidPayment(p)) {
             setPaid(true);
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
