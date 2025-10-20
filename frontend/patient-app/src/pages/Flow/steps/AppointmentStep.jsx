@@ -27,26 +27,21 @@ const formatDateVN = (d) => {
   return `${dd}/${m}/${y}`;
 };
 
-/* ===== Chuẩn hoá thanh toán/đơn hàng ===== */
+/* ===== Chuẩn hoá payment ===== */
 const getPaymentId = (p) =>
-  p?.id || p?.maDonHang || p?.ma || p?.code || p?.orderId || null;
+  p?.id || p?.maDonHang || p?.ma || p?.orderId || null;
 
-const isPaidPayment = (p) => {
-  const s = String(p?.status || "").toUpperCase();
-  return (
-    s === "PAID" || s === "COMPLETED" || s === "SUCCESS" ||
-    Number(p?.trangThai) === 1 || !!p?.paidAt
-  );
-};
+// CHỈ dùng trangThai 0/1 (và paidAt nếu có)
+const isPaidPayment = (p) => Number(p?.trangThai) === 1 || !!p?.paidAt;
 
+// Cho phép lịch hẹn báo trạng thái đã xong (nếu server có cờ)
 const isPaidAppt = (a) =>
   Number(a?.trangThai) === 2 || Number(a?.thanhToan) === 1 || Number(a?.daThanhToan) === 1;
 
 export default function AppointmentStep() {
-  const { mode } = useParams(); // "bhyt" | "service" | "booking" (tham chiếu UI)
+  const { mode } = useParams();
   const navigate = useNavigate();
   const q = new URLSearchParams(useLocation().search);
-  // ưu tiên ?ma=..., tương thích cũ ?id=...
   const codeFromQuery = q.get("ma") || q.get("id");
 
   // core states
@@ -56,7 +51,7 @@ export default function AppointmentStep() {
 
   // payment states
   const [payInitLoading, setPayInitLoading] = useState(true);
-  const [payment, setPayment] = useState(null);   // { id/maDonHang, status/trangThai, amount, qrUrl, transferContent, paidAt, expireAt }
+  const [payment, setPayment] = useState(null); // { id/maDonHang, trangThai, amount, qrUrl, transferContent, paidAt, expireAt }
   const [paid, setPaid] = useState(false);
   const [expired, setExpired] = useState(false);
   const [countdown, setCountdown] = useState("--:--");
@@ -82,7 +77,6 @@ export default function AppointmentStep() {
         const code = codeFromQuery || apptCodeFromCache;
         if (!code) throw new Error("Không tìm thấy lịch hẹn vừa tạo.");
 
-        // API mới: GET /appointments/:ma
         const rs = await client.get(`/appointments/${code}`);
         if (!mounted) return;
         setAppt(rs?.data);
@@ -103,12 +97,12 @@ export default function AppointmentStep() {
     };
   }, [codeFromQuery, apptCodeFromCache]);
 
-  /* 2) Khi có appointment -> nếu chưa thanh toán thì khởi tạo/tái sử dụng order */
+  /* 2) Có appointment -> kiểm tra/khởi tạo thanh toán */
   useEffect(() => {
     const ma = appt?.maLichHen || appt?.idLichHen;
     if (!ma) return;
 
-    if (isPaidAppt(appt)) { // ✅ linh hoạt nhiều kiểu cờ thanh toán từ server
+    if (isPaidAppt(appt)) {
       setPaid(true);
       setPayment(null);
       setPayInitLoading(false);
@@ -135,28 +129,26 @@ export default function AppointmentStep() {
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
 
     try {
-      // API mới: POST /payments  body: { maLichHen }
+      // POST /payments { maLichHen }
       const { data } = await client.post("/payments", { maLichHen });
 
-      // ép hạn client 3' nếu server không có expireAt
+      // ép hạn trên client 3'
       const clientExpireAt = new Date(Date.now() + 3 * 60 * 1000).toISOString();
       const mergedRaw = { ...data };
       const merged = { ...mergedRaw, expireAt: mergedRaw?.expireAt || clientExpireAt };
 
-      // Chuẩn hoá id/maDonHang
+      // chuẩn hoá id
       const paymentId = getPaymentId(merged);
-      if (!paymentId) {
-        throw new Error("Thiếu mã đơn thanh toán để theo dõi.");
-      }
-      merged.id = paymentId; // đặt lại id để code phía dưới luôn dùng được
+      if (!paymentId) throw new Error("Thiếu mã đơn thanh toán để theo dõi.");
+      merged.id = paymentId;
 
       setPayment(merged);
 
-      // Nếu ở bước tạo mà server đã báo trangThai = 1 (hoặc paidAt/status) ⇒ đánh dấu paid ngay
+      // Nếu server đã trả trangThai=1 hoặc paidAt -> coi như đã thanh toán
       if (isPaidPayment(merged)) {
         setPaid(true);
         setPayInitLoading(false);
-        // refresh appointment để đồng bộ cuối cùng
+        // đồng bộ lại appointment
         try {
           const rs2 = await client.get(`/appointments/${maLichHen}`);
           setAppt(rs2?.data);
@@ -164,14 +156,13 @@ export default function AppointmentStep() {
         return;
       }
 
+      // chưa thanh toán -> bắt đầu đếm ngược + polling
       startCountdown(merged.expireAt);
 
-      // Poll GET /payments/:id|maDonHang
       pollRef.current = setInterval(async () => {
         try {
           const rs = await client.get(`/payments/${paymentId}`);
           const p = rs?.data || {};
-          // merge toàn bộ để giữ paidAt/trangThai/qrUrl mới nhất
           setPayment(prev => ({ ...(prev || {}), ...p }));
 
           if (isPaidPayment(p)) {
@@ -179,7 +170,7 @@ export default function AppointmentStep() {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
 
-            // Refresh lại appointment (để lấy trạng thái/phiDaGiam mới nhất)
+            // Refresh appointment để lấy cờ thanh toán từ server
             try {
               const rs2 = await client.get(`/appointments/${maLichHen}`);
               setAppt(rs2?.data);
@@ -253,7 +244,7 @@ export default function AppointmentStep() {
   }
   if (!appt) return null;
 
-  // Giá hiển thị: ưu tiên server (phiDaGiam/phiKhamGoc), fallback service đã chọn
+  // Giá hiển thị
   const baseFee = Number(appt.phiKhamGoc ?? pickedService?.price ?? 0);
   const priceShow = Number(appt.phiDaGiam ?? pickedService?.priceInfo?.total ?? baseFee);
   const discountNote =
