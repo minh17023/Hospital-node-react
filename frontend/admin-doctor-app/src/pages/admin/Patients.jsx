@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "../../components/Layout";
 import client from "../../api/client";
 
@@ -18,6 +18,7 @@ function AlertBanner({ visible, type = "success", message, onClose }) {
 export default function AdminPatients() {
   /* ===== Filters ===== */
   const [q, setQ] = useState("");
+  const [qDebounced, setQDebounced] = useState("");
   const [trangThai, setTrangThai] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -26,7 +27,6 @@ export default function AdminPatients() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
 
   /* ===== Pagination ===== */
   const [page, setPage] = useState(1);
@@ -52,12 +52,21 @@ export default function AdminPatients() {
     if (timeout) setTimeout(() => setAlert((s) => ({ ...s, show: false })), timeout);
   };
 
+  // debounce nhập từ khóa
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  // guard đua request
+  const runId = useRef(0);
+
   async function loadData() {
+    const id = ++runId.current;
     setLoading(true);
-    setErr("");
     try {
       const params = {
-        q: q.trim() || undefined,
+        q: qDebounced || undefined,
         trangThai: trangThai !== "" ? Number(trangThai) : undefined,
         from: from || undefined,
         to: to || undefined,
@@ -67,30 +76,23 @@ export default function AdminPatients() {
         order: "DESC",
       };
       const { data } = await client.get("/patients", { params });
+      if (id !== runId.current) return; // bỏ response cũ
       setRows(data?.items || []);
       setTotal(Number(data?.total || 0));
     } catch (e2) {
       const msg = e2?.response?.data?.message || "Không tải được danh sách bệnh nhân";
-      setErr(msg);
+      if (id !== runId.current) return;
       flash(msg, "danger");
     } finally {
-      setLoading(false);
+      if (id === runId.current) setLoading(false);
     }
   }
 
-  useEffect(() => { loadData(); }, [page, pageSize]);
-
-  const onSubmitFilters = async (e) => {
-    e.preventDefault();
-    setPage(1);
-    await loadData();
-    flash("Đã tải dữ liệu theo bộ lọc");
-  };
-
-  function clearFilters() {
-    setQ(""); setTrangThai(""); setFrom(""); setTo(""); setPage(1);
-    loadData().then(() => flash("Đã xóa bộ lọc", "info"));
-  }
+  // Tự load khi filter/paging thay đổi (không còn nút Lọc)
+  useEffect(() => {
+    loadData();
+    return () => { runId.current++; };
+  }, [qDebounced, trangThai, from, to, page, pageSize]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
   const pageSafe = Math.min(page, totalPages);
@@ -171,31 +173,32 @@ export default function AdminPatients() {
     } finally { setDeleting(false); }
   }
 
+  const clearFilters = () => {
+    setQ(""); setTrangThai(""); setFrom(""); setTo("");
+    setPage(1);
+  };
+
   return (
     <Layout>
       {/* CSS nội tuyến để table cuộn, không tràn trang */}
       <style>{`
-        /* chiều cao phần trên (tiêu đề, alert, filters, pagination dưới...) để trừ ra */
-        :root { --patients-header: 280px; }
-        @media (max-width: 1200px) { :root { --patients-header: 320px; } }
-
         .page-flex {
           display: flex;
           flex-direction: column;
-          height: calc(100vh - 90px); /* trừ navbar/topbar ngoài Layout nếu có */
-          min-height: 0; /* quan trọng để con có thể overflow */
+          height: calc(100vh - 90px);
+          min-height: 0;
         }
         .table-zone {
           flex: 1 1 auto;
-          min-height: 0;          /* quan trọng */
-          overflow: hidden;       /* chặn tràn */
+          min-height: 0;
+          overflow: hidden;
           display: flex;
           flex-direction: column;
         }
         .table-scroll {
           flex: 1 1 auto;
           min-height: 0;
-          overflow: auto;         /* chỉ khu vực bảng được cuộn */
+          overflow: auto;
           border-radius: .25rem;
         }
         .table-scroll table thead th {
@@ -221,21 +224,21 @@ export default function AdminPatients() {
             onClose={() => setAlert((s) => ({ ...s, show: false }))}
           />
 
-          {/* Filters */}
-          <form className="row g-2 mb-3" onSubmit={onSubmitFilters}>
+          {/* Filters – KHÔNG có nút Lọc, tự load khi đổi */}
+          <div className="row g-2 mb-3">
             <div className="col-md-5">
               <input
                 className="form-control"
                 placeholder="Tìm theo tên/CCCD/SĐT/email/mã…"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => { setQ(e.target.value); setPage(1); }}
               />
             </div>
             <div className="col-md-2">
               <select
                 className="form-select"
                 value={trangThai}
-                onChange={(e) => setTrangThai(e.target.value)}
+                onChange={(e) => { setTrangThai(e.target.value); setPage(1); }}
               >
                 <option value="">Tất cả trạng thái</option>
                 <option value="1">Hoạt động</option>
@@ -243,18 +246,29 @@ export default function AdminPatients() {
               </select>
             </div>
             <div className="col-md-2">
-              <input type="date" className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <input
+                type="date"
+                className="form-control"
+                value={from}
+                onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+                max={to || undefined}
+              />
             </div>
             <div className="col-md-2">
-              <input type="date" className="form-control" value={to} onChange={(e) => setTo(e.target.value)} />
+              <input
+                type="date"
+                className="form-control"
+                value={to}
+                onChange={(e) => { setTo(e.target.value); setPage(1); }}
+                min={from || undefined}
+              />
             </div>
             <div className="col-md-1 d-grid">
-              <button className="btn btn-outline-secondary" type="submit">Lọc</button>
+              <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>
+                Xóa
+              </button>
             </div>
-            <div className="col-md-1 d-grid">
-              <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>Xóa</button>
-            </div>
-          </form>
+          </div>
 
           {/* Bảng + scroll riêng */}
           <div className="table-zone">
@@ -342,7 +356,7 @@ export default function AdminPatients() {
         </div>
       </div>
 
-      {/* ===== Modals (giữ nguyên, chỉ căn giữa + backdrop) ===== */}
+      {/* ===== Modals ===== */}
       {viewing && (
         <>
           <div className="modal fade show" style={{ display: "block" }}>

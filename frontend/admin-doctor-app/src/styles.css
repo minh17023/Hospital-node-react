@@ -134,7 +134,7 @@ html, body, #root { height: 100%; overflow: hidden; }
   display: flex;
   flex-direction: column;
   /* Điều chỉnh con số này để khớp header/sidebar của app bạn */
-  height: calc(100vh - 90px);
+  height: calc(100vh - 90px); 
   min-height: 0; /* quan trọng để cho phép con bên trong overflow */
 }
 

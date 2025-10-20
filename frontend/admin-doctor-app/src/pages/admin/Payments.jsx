@@ -21,7 +21,7 @@ function DetailModal({ data, onClose, onRefresh, loading }) {
         <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title">Đơn #{data?.maDonHang || ""}</h5>
+              <h5 className="modal-title">Đơn {data?.maDonHang || ""}</h5>
               <button className="btn-close" onClick={onClose} />
             </div>
             <div className="modal-body">
@@ -104,7 +104,7 @@ export default function AdminPayments() {
   // guards
   const runId = useRef(0);
   const typingTimer = useRef(null);
-  const [rowLoadingId, setRowLoadingId] = useState(null); // show loading per-row button
+  const [rowLoadingId, setRowLoadingId] = useState(null);
 
   // debounce input q
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function AdminPayments() {
     return () => typingTimer.current && clearTimeout(typingTimer.current);
   }, [q]);
 
-  // ✅ Chỉ 1 effect duy nhất để load list (không gọi load() ở nơi khác)
+  // ✅ chỉ 1 effect load list
   useEffect(() => {
     const id = ++runId.current;
     setLoading(true);
@@ -122,7 +122,7 @@ export default function AdminPayments() {
         const { data } = await client.get("/payments", {
           params: {
             q: qDebounced || undefined,
-            status: status === "ALL" ? undefined : Number(status), // 0 | 1
+            status: status === "ALL" ? undefined : Number(status),
             limit,
             offset,
           },
@@ -133,7 +133,8 @@ export default function AdminPayments() {
           maDonHang: r.maDonHang,
           maLichHen: r.maLichHen,
           soTien: r.soTien,
-          trangThai: r.trangThai, // 0/1
+          trangThai: Number(r.trangThai),   // 0/1
+          createdAt: r.createdAt || null,   // 👈 dùng cho cột “Tạo lúc”
         })));
         setTotal(Number(data?.total || 0));
       } catch (e) {
@@ -143,19 +144,15 @@ export default function AdminPayments() {
         if (id === runId.current) setLoading(false);
       }
     })();
-    // cleanup để hủy kết quả cũ trong StrictMode dev
     return () => { runId.current++; };
-  }, [qDebounced, status, limit, offset]); // 👈 gom tất cả dependencies vào đây
+  }, [qDebounced, status, limit, offset]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
   const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
   const prev = () => setOffset((o) => Math.max(0, o - limit));
 
   function clearFilters() {
-    setQ("");
-    setStatus("ALL");
-    setOffset(0);
-    // KHÔNG gọi load() – effect sẽ tự chạy
+    setQ(""); setStatus("ALL"); setOffset(0);
   }
 
   async function openDetail(maDonHang) {
@@ -183,8 +180,9 @@ export default function AdminPayments() {
 
   return (
     <Layout>
-      <div className="card">
-        <div className="card-body">
+      {/* Card full-height, bảng cuộn bên trong (giống các trang đã fix) */}
+      <div className="card page-flex">
+        <div className="card-body d-flex flex-column" style={{ minHeight: 0 }}>
           {/* Header */}
           <div className="d-flex align-items-center mb-3">
             <h2 className="me-auto m-0">Quản lý thanh toán</h2>
@@ -198,7 +196,7 @@ export default function AdminPayments() {
             </div>
           )}
 
-          {/* Filters (auto-load) */}
+          {/* Filters — đặt ngoài vùng cuộn */}
           <div className="row g-2 mb-3">
             <div className="col-md-5">
               <input
@@ -222,55 +220,59 @@ export default function AdminPayments() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="table-responsive">
-            <table className="table table-hover align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: 150 }}>Mã đơn</th>
-                  <th style={{ width: 150 }}>Mã lịch hẹn</th>
-                  <th style={{ width: 140 }}>Số tiền</th>
-                  <th style={{ width: 160 }}>Trạng thái</th>
-                  <th className="text-end" style={{ width: 150 }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {/* ===== VÙNG BẢNG CUỘN ===== */}
+          <div className="table-zone">
+            <div className="table-responsive table-sticky">
+              <table className="table table-hover align-middle mb-0 table-tight">
+                <thead className="table-light">
                   <tr>
-                    <td colSpan={5} className="py-4 text-center">
-                      <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
-                    </td>
+                    <th style={{ width: 150 }}>Mã đơn</th>
+                    <th style={{ width: 150 }}>Mã lịch hẹn</th>
+                    <th style={{ width: 160 }}>Tạo lúc</th>     {/* 👈 cột mới */}
+                    <th style={{ width: 140 }}>Số tiền</th>
+                    <th style={{ width: 160 }}>Trạng thái</th>
+                    <th className="text-end" style={{ width: 150 }}>Thao tác</th>
                   </tr>
-                ) : rows.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center text-muted py-4">Chưa có đơn nào</td></tr>
-                ) : (
-                  rows.map((r) => {
-                    const st = toBadge(r.trangThai);
-                    return (
-                      <tr key={r.maDonHang}>
-                        <td><span className="badge bg-secondary">#{r.maDonHang}</span></td>
-                        <td className="text-nowrap">{r.maLichHen || "-"}</td>
-                        <td className="text-nowrap">{fmtMoney(r.soTien)} đ</td>
-                        <td><span className={`badge bg-${st.cls}`}>{st.text}</span></td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={() => openDetail(r.maDonHang)}
-                            disabled={rowLoadingId === r.maDonHang}
-                          >
-                            {rowLoadingId === r.maDonHang ? "Đang tải…" : "Xem thông tin"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center">
+                        <div className="spinner-border" role="status"><span className="visually-hidden">Loading…</span></div>
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center text-muted py-4">Chưa có đơn nào</td></tr>
+                  ) : (
+                    rows.map((r) => {
+                      const st = toBadge(r.trangThai);
+                      return (
+                        <tr key={r.maDonHang}>
+                          <td><span className="badge bg-secondary">{r.maDonHang}</span></td>
+                          <td className="text-nowrap">{r.maLichHen || "-"}</td>
+                          <td className="text-nowrap">{fmtDateTime(r.createdAt)}</td>
+                          <td className="text-nowrap">{fmtMoney(r.soTien)} đ</td>
+                          <td><span className={`badge bg-${st.cls}`}>{st.text}</span></td>
+                          <td className="text-end">
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => openDetail(r.maDonHang)}
+                              disabled={rowLoadingId === r.maDonHang}
+                            >
+                              {rowLoadingId === r.maDonHang ? "Đang tải…" : "Xem thông tin"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Pagination */}
-          <div className="d-flex justify-content-between align-items-center">
+          {/* Pagination — đặt ngoài vùng cuộn */}
+          <div className="d-flex justify-content-between align-items-center mt-3">
             <small className="text-muted">Tổng: {total} • Trang {page}/{Math.max(1, Math.ceil(total / limit))}</small>
             <div>
               <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>

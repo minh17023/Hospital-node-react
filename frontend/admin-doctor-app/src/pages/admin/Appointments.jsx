@@ -186,9 +186,6 @@ export default function AdminAppointments() {
               </select>
             </div>
             <div className="col-md-1 d-grid">
-              <button className="btn btn-outline-secondary" type="submit">Tải</button>
-            </div>
-            <div className="col-md-1 d-grid">
               <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>Xóa</button>
             </div>
           </form>

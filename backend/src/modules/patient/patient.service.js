@@ -72,5 +72,16 @@ export const PatientService = {
     } finally {
       conn.release();
     }
-  }
+  },
+
+  listByDoctor: (maBacSi, query = {}) =>
+    PatientModel.listByDoctor(maBacSi, {
+      q: query.q ?? "",
+      from: query.from ?? null,
+      to: query.to ?? null,
+      limit: query.limit ?? 50,
+      offset: query.offset ?? 0,
+      orderBy: query.orderBy ?? "lastVisit",
+      order: query.order ?? "DESC",
+    }),
 };

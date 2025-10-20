@@ -13,18 +13,17 @@ const monthStartYMD = () => {
 };
 const weekStartYMD = () => {
   const d = new Date();
-  const day = d.getDay() || 7; // CN = 7
+  const day = d.getDay() || 7; // CN=7
   d.setDate(d.getDate() - (day - 1));
   return d.toISOString().slice(0, 10);
 };
 
-/* ===== page ===== */
 export default function AdminHome() {
-  // filters (auto load)
+  /* filters */
   const [from, setFrom] = useState(monthStartYMD());
   const [to, setTo] = useState(todayYMD());
 
-  // data
+  /* data */
   const [loading, setLoading] = useState(false);
   const [alertMsg, setAlertMsg] = useState("");
   const [sum, setSum] = useState({
@@ -34,12 +33,11 @@ export default function AdminHome() {
     orders: { total: 0, paid: 0, unpaid: 0, avgPaidOrderValue: 0 },
   });
 
-  // guards
-  const runId = useRef(0); // chống double-call StrictMode
-  const abortRef = useRef(null); // hủy request cũ khi filter đổi
+  /* guards */
+  const runId = useRef(0);
+  const abortRef = useRef(null);
 
   async function load() {
-    // hủy request đang chạy (nếu có)
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -51,7 +49,7 @@ export default function AdminHome() {
         params: { from, to },
         signal: controller.signal,
       });
-      if (id !== runId.current) return; // ignore nếu đã bị thay thế
+      if (id !== runId.current) return;
       setSum({
         range: data?.range || { from, to },
         revenuePaid: Number(data?.revenuePaid || 0),
@@ -73,18 +71,16 @@ export default function AdminHome() {
     }
   }
 
-  // load lần đầu + mỗi khi đổi from/to
   useEffect(() => {
-    if (from && to && from > to) return; // tránh bắn API khi chọn sai
+    if (from && to && from > to) return;
     load();
     return () => {
-      // invalidate mọi response cũ + hủy request
       runId.current++;
       if (abortRef.current) abortRef.current.abort();
     };
   }, [from, to]);
 
-  // charts
+  /* charts */
   const pieSeries = useMemo(
     () => [sum.revenuePaid || 0, sum.revenueUnpaid || 0],
     [sum.revenuePaid, sum.revenueUnpaid]
@@ -117,136 +113,101 @@ export default function AdminHome() {
     []
   );
 
-  // quick presets
-  const setThisMonth = () => {
-    setFrom(monthStartYMD());
-    setTo(todayYMD());
-  };
-  const setThisWeek = () => {
-    setFrom(weekStartYMD());
-    setTo(todayYMD());
-  };
-  const setToday = () => {
-    const t = todayYMD();
-    setFrom(t);
-    setTo(t);
-  };
+  /* presets */
+  const setThisMonth = () => { setFrom(monthStartYMD()); setTo(todayYMD()); };
+  const setThisWeek  = () => { setFrom(weekStartYMD());  setTo(todayYMD()); };
+  const setToday     = () => { const t = todayYMD(); setFrom(t); setTo(t); };
 
   return (
     <Layout>
-      {/* dùng .page để kích hoạt cuộn nội bộ nếu content dài */}
-      <div className="page">
-        <div className="page-body">
-          <div className="card card-grow">
-            <div className="card-body">
-              <div className="d-flex align-items-center mb-3">
-                <h2 className="me-auto m-0">Tổng quan</h2>
+      {/* === CARD full-height: KHÔNG TRÀN, chỉ phần dưới cuộn === */}
+      <div className="card page-flex vh-card">
+        <div className="card-body page-flex">
+          {/* Header */}
+          <div className="d-flex align-items-center mb-3">
+            <h2 className="me-auto m-0">Tổng quan</h2>
+          </div>
+
+          {/* Alert */}
+          {alertMsg && (
+            <div className="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+              {alertMsg}
+              <button type="button" className="btn-close" onClick={() => setAlertMsg("")} />
+            </div>
+          )}
+
+          {/* Filters + KPI (ngoài vùng cuộn) */}
+          <div className="row g-2 mb-3">
+            <div className="col-md-3">
+              <label className="form-label small">Từ ngày</label>
+              <input type="date" className="form-control" value={from}
+                     onChange={(e) => setFrom(e.target.value)} max={to || undefined}/>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small">Đến ngày</label>
+              <input type="date" className="form-control" value={to}
+                     onChange={(e) => setTo(e.target.value)} min={from || undefined} max={todayYMD()}/>
+            </div>
+            <div className="col-md-6 d-flex align-items-end gap-2">
+              <button className="btn btn-outline-secondary" type="button" onClick={setToday}>Hôm nay</button>
+              <button className="btn btn-outline-secondary" type="button" onClick={setThisWeek}>Tuần này</button>
+              <button className="btn btn-outline-secondary" type="button" onClick={setThisMonth}>Tháng này</button>
+              {loading && <span className="spinner-border spinner-border-sm ms-auto" />}
+            </div>
+          </div>
+
+          <div className="row g-3 mb-3">
+            <div className="col-md-4">
+              <div className="p-3 border rounded-3 h-100">
+                <div className="text-muted small">Doanh thu đã thanh toán</div>
+                <div className="fs-4 fw-bold">{fmtMoney(sum.revenuePaid)} đ</div>
+                <div className="text-muted small">({sum.range.from} → {sum.range.to})</div>
               </div>
-
-              {/* Alert */}
-              {alertMsg && (
-                <div className="alert alert-danger alert-dismissible fade show" role="alert">
-                  {alertMsg}
-                  <button type="button" className="btn-close" onClick={() => setAlertMsg("")} />
-                </div>
-              )}
-
-              {/* Filters */}
-              <div className="row g-2 mb-3">
-                <div className="col-md-3">
-                  <label className="form-label small">Từ ngày</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    max={to || undefined}
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label small">Đến ngày</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    min={from || undefined}
-                    max={todayYMD()}
-                  />
-                </div>
-                <div className="col-md-6 d-flex align-items-end gap-2">
-                  <button className="btn btn-outline-secondary" type="button" onClick={setToday}>
-                    Hôm nay
-                  </button>
-                  <button className="btn btn-outline-secondary" type="button" onClick={setThisWeek}>
-                    Tuần này
-                  </button>
-                  <button className="btn btn-outline-secondary" type="button" onClick={setThisMonth}>
-                    Tháng này
-                  </button>
-                  {loading && <span className="spinner-border spinner-border-sm ms-auto" />}
-                </div>
+            </div>
+            <div className="col-md-4">
+              <div className="p-3 border rounded-3 h-100">
+                <div className="text-muted small">Doanh thu chưa thanh toán</div>
+                <div className="fs-4 fw-bold">{fmtMoney(sum.revenueUnpaid)} đ</div>
+                <div className="text-muted small">({sum.range.from} → {sum.range.to})</div>
               </div>
-
-              {/* KPIs */}
-              <div className="row g-3 mb-4">
-                <div className="col-md-4">
-                  <div className="p-3 border rounded-3 h-100">
-                    <div className="text-muted small">Doanh thu đã thanh toán</div>
-                    <div className="fs-4 fw-bold">{fmtMoney(sum.revenuePaid)} đ</div>
-                    <div className="text-muted small">
-                      ({sum.range.from} → {sum.range.to})
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="p-3 border rounded-3 h-100">
-                    <div className="text-muted small">Doanh thu chưa thanh toán</div>
-                    <div className="fs-4 fw-bold">{fmtMoney(sum.revenueUnpaid)} đ</div>
-                    <div className="text-muted small">
-                      ({sum.range.from} → {sum.range.to})
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="p-3 border rounded-3 h-100">
-                    <div className="text-muted small">Số đơn</div>
-                    <div className="fs-4 fw-bold">{sum.orders.total}</div>
-                    <div className="text-muted small">
-                      Đã TT: {sum.orders.paid} • Chưa TT: {sum.orders.unpaid}
-                    </div>
-                    <div className="text-muted small">
-                      Giá trị TB/đơn (đã TT): {fmtMoney(sum.orders.avgPaidOrderValue)} đ
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Charts */}
-              <div className="row g-3">
-                <div className="col-lg-6">
-                  <div className="p-3 border rounded-3 h-100">
-                    <div className="d-flex align-items-center mb-2">
-                      <h5 className="m-0">Cơ cấu doanh thu</h5>
-                      {loading && <span className="spinner-border spinner-border-sm ms-2" />}
-                    </div>
-                    <Chart options={pieOptions} series={pieSeries} type="donut" height={320} />
-                  </div>
-                </div>
-                <div className="col-lg-6">
-                  <div className="p-3 border rounded-3 h-100">
-                    <div className="d-flex align-items-center mb-2">
-                      <h5 className="m-0">Số đơn theo trạng thái</h5>
-                      {loading && <span className="spinner-border spinner-border-sm ms-2" />}
-                    </div>
-                    <Chart options={colOptions} series={colSeries} type="bar" height={320} />
-                  </div>
-                </div>
+            </div>
+            <div className="col-md-4">
+              <div className="p-3 border rounded-3 h-100">
+                <div className="text-muted small">Số đơn</div>
+                <div className="fs-4 fw-bold">{sum.orders.total}</div>
+                <div className="text-muted small">Đã TT: {sum.orders.paid} • Chưa TT: {sum.orders.unpaid}</div>
+                <div className="text-muted small">Giá trị TB/đơn (đã TT): {fmtMoney(sum.orders.avgPaidOrderValue)} đ</div>
               </div>
             </div>
           </div>
+
+          {/* ===== VÙNG CUỘN – chỉ phần này overflow ===== */}
+          <div className="scroll-zone">
+            <div className="row g-3">
+              <div className="col-lg-6">
+                <div className="p-3 border rounded-3 h-100">
+                  <div className="d-flex align-items-center mb-2">
+                    <h5 className="m-0">Cơ cấu doanh thu</h5>
+                    {loading && <span className="spinner-border spinner-border-sm ms-2" />}
+                  </div>
+                  <Chart options={pieOptions} series={pieSeries} type="donut" height={320} />
+                </div>
+              </div>
+              <div className="col-lg-6">
+                <div className="p-3 border rounded-3 h-100">
+                  <div className="d-flex align-items-center mb-2">
+                    <h5 className="m-0">Số đơn theo trạng thái</h5>
+                    {loading && <span className="spinner-border spinner-border-sm ms-2" />}
+                  </div>
+                  <Chart options={colOptions} series={colSeries} type="bar" height={320} />
+                </div>
+              </div>
+
+              {/* nếu còn section khác thì đặt tiếp ở đây */}
+            </div>
+          </div>
         </div>
-      </div>      
+      </div>
     </Layout>
   );
 }

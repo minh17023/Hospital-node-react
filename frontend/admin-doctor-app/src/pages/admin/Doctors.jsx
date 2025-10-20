@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import client from "../../api/client";
 import Layout from "../../components/Layout";
 
@@ -9,8 +9,12 @@ export default function AdminDoctors() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
+
+  // 🔎 FE search (debounce)
   const [keyword, setKeyword] = useState("");
-  const [limit, setLimit] = useState(DEFAULT_LIMIT);
+  const [keywordDebounced, setKeywordDebounced] = useState("");
+
+  const [limit] = useState(DEFAULT_LIMIT);
   const [offset, setOffset] = useState(0);
 
   // modals
@@ -21,28 +25,49 @@ export default function AdminDoctors() {
   const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
 
+  // --- debounce keyword 350ms
+  useEffect(() => {
+    const t = setTimeout(() => setKeywordDebounced(keyword.trim()), 350);
+    return () => clearTimeout(t);
+  }, [keyword]);
+
+  // guard đua request
+  const runId = useRef(0);
+
   async function load() {
+    const id = ++runId.current;
     setLoading(true);
     try {
-      const { data } = await client.get("/doctors", { params: { keyword, limit, offset } });
+      const { data } = await client.get("/doctors", {
+        params: { keyword: keywordDebounced || undefined, limit, offset },
+      });
+      if (id !== runId.current) return; // bỏ response cũ
       setItems(data.items || []);
       setTotal(Number(data.total || 0));
     } catch (e) {
+      if (id !== runId.current) return;
       console.error(e);
       alert(e?.response?.data?.message || "Lỗi tải danh sách bác sĩ");
     } finally {
-      setLoading(false);
+      if (id === runId.current) setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [keyword, limit, offset]);
+  // auto load theo keywordDebounced / offset
+  useEffect(() => { load(); }, [keywordDebounced, limit, offset]); // eslint-disable-line
 
   const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
   const prev = () => setOffset((o) => Math.max(0, o - limit));
 
+  const clearFilters = () => {
+    setKeyword("");
+    setOffset(0);
+    // effect sẽ tự load
+  };
+
   return (
     <Layout>
-      {/* card full-height + bảng cuộn theo CSS chung */}
+      {/* card full-height + bảng cuộn */}
       <div className="card page-flex">
         <div className="card-body d-flex flex-column">
           <div className="d-flex align-items-center mb-3">
@@ -52,31 +77,25 @@ export default function AdminDoctors() {
             </button>
           </div>
 
-          <form
-            className="row g-2 mb-3"
-            onSubmit={(e) => { e.preventDefault(); setOffset(0); load(); }}
-          >
+          {/* Filters: không có nút tìm, có Xóa lọc */}
+          <div className="row g-2 mb-3">
             <div className="col-md-6">
               <input
                 className="form-control"
-                placeholder="Tìm theo tên/mã/chuyên khoa…"
+                placeholder="Tìm theo tên / mã / chuyên khoa…"
                 value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
+                onChange={(e) => {
+                  setKeyword(e.target.value);
+                  setOffset(0); // về trang 1 khi đổi từ khóa
+                }}
               />
             </div>
-            <div className="col-md-2">
-              <button className="btn btn-outline-secondary w-100" type="submit">Tìm kiếm</button>
+            <div className="col-md-2 d-flex">
+              <button type="button" className="btn btn-outline-dark ms-auto" onClick={clearFilters}>
+                Xóa lọc
+              </button>
             </div>
-            <div className="col-md-2">
-              <select
-                className="form-select"
-                value={limit}
-                onChange={(e) => { setLimit(Number(e.target.value)); setOffset(0); }}
-              >
-                {[10, 12, 20, 30, 50].map(n => <option key={n} value={n}>{n}/trang</option>)}
-              </select>
-            </div>
-          </form>
+          </div>
 
           {/* Bảng – cuộn trong vùng riêng, thead sticky, hàng gọn */}
           <div className="table-zone">
@@ -188,7 +207,6 @@ export default function AdminDoctors() {
               setConfirmDel(null);
               await load();
             } catch (e) {
-              // Thông báo thân thiện nếu vướng khóa ngoại
               const msg = e?.response?.data?.message || "";
               const isFK =
                 e?.response?.status === 409 ||
@@ -275,9 +293,7 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
       return alert("Vui lòng nhập mã nhân viên & chuyên khoa");
     }
     const payload = {
-      // Khi tạo: cần cả mã NV; Khi sửa: không cho đổi mã NV
       ...(editMode ? {} : { maNhanVien }),
-      // LUÔN gửi chuyên khoa để backend có thể update
       maChuyenKhoa,
       maHocVi: emptyToNull(maHocVi),
       maHocHam: emptyToNull(maHocHam),
@@ -305,7 +321,6 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
         style={{ display: "block", zIndex: 1060 }}
         onClick={onClose}
       >
-        {/* rộng & centered */}
         <div
           className="modal-dialog modal-dialog-centered modal-xl"
           onClick={(e) => e.stopPropagation()}
@@ -316,10 +331,9 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
               <button type="button" className="btn-close" onClick={onClose} />
             </div>
 
-            {/* body có thể cuộn khi dài – dùng class chung modal-scroll */}
+            {/* body có thể cuộn khi dài */}
             <div className="modal-body modal-scroll">
               <div className="row g-3">
-                {/* Mã nhân viên: chỉ nhập được khi tạo, khi sửa thì hiển thị read-only */}
                 <div className="col-md-6 col-xl-6">
                   <label className="form-label small">
                     Mã nhân viên {editMode ? "" : <span className="text-danger">*</span>}
@@ -334,7 +348,6 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
                   />
                 </div>
 
-                {/* Chuyên khoa: luôn hiển thị để admin có thể đổi khi sửa */}
                 <div className="col-md-6 col-xl-6">
                   <label className="form-label small">
                     Chuyên khoa <span className="text-danger">*</span>

@@ -54,6 +54,26 @@ export default function Login() {
     if (field === "password" && (err.type === "password" || err.type === "general")) setErr(null);
   }
 
+  // ====== ADD: gộp thêm trường vào ME trong localStorage ======
+  function mergeME(patch) {
+    try {
+      const cur = JSON.parse(localStorage.getItem("ME") || "null") || {};
+      localStorage.setItem("ME", JSON.stringify({ ...cur, ...patch }));
+    } catch {}
+  }
+
+  // ====== ADD: gọi /doctors/by-user/:maUser để lấy maBacSi ======
+  async function hydrateDoctor(maUser) {
+    if (!maUser) return;
+    try {
+      const { data } = await client.get(`/doctors/by-user/${maUser}`);
+      const maBacSi = data?.doctor?.maBacSi ?? data?.maBacSi ?? null;
+      if (maBacSi) mergeME({ maBacSi });
+    } catch {
+      // không chặn luồng login nếu API phụ này lỗi
+    }
+  }
+
   const submit = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -87,14 +107,25 @@ export default function Login() {
         return;
       }
 
+      // ====== ADD: nếu là bác sĩ → lấy maBacSi theo maUser và lưu vào ME ======
+      if (role === ROLES.DOCTOR) {
+        const maUser =
+          data?.user?.maUser ||
+          data?.user?.maNguoiDung ||
+          data?.user?.id ||
+          data?.user?.ma; // dự phòng các key khác nhau
+        await hydrateDoctor(maUser);
+      }
+
       window.location.href = role === ROLES.ADMIN ? "/admin" : "/doctor";
     } catch (e2) {
-      setErr(prettyError(e2));
+      const pe = prettyError(e2);
+      setErr(pe);
       // đưa focus vào banner để SR đọc, sau đó focus vào input phù hợp
       setTimeout(() => {
         alertRef.current?.focus();
-        if (err?.type === "username") userRef.current?.focus();
-        if (err?.type === "password") passRef.current?.focus();
+        if (pe?.type === "username") userRef.current?.focus();
+        if (pe?.type === "password") passRef.current?.focus();
       }, 0);
     } finally {
       setLoading(false);

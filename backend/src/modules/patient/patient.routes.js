@@ -10,11 +10,11 @@ const r = Router();
 // Lấy hồ sơ của chính mình + danh sách BHYT
 r.get("/patients/me", authGuard(true), PatientController.me);
 
-// Danh sách toàn bộ bệnh nhân (ADMIN)
+// Danh sách toàn bộ bệnh nhân (ADMIN | DOCTOR)
 r.get(
   "/patients",
   authGuard(true),
-  requireRole(ROLES.ADMIN,ROLES.DOCTOR),
+  requireRole(ROLES.ADMIN, ROLES.DOCTOR),
   PatientController.list
 );
 
@@ -40,6 +40,14 @@ r.delete(
   authGuard(true),
   requireRole(ROLES.ADMIN),
   PatientController.remove
+);
+
+// ADMIN xem tất; DOCTOR chỉ xem của mình 
+r.get(
+  "/doctors/:maBacSi/patients",
+  authGuard(true),
+  requireRole(ROLES.ADMIN, ROLES.DOCTOR),
+  PatientController.listByDoctor
 );
 
 export default r;

@@ -1,6 +1,13 @@
 import { AppError } from "../../core/http/error.js";
 import { PatientService } from "./patient.service.js";
 import { PatientModel } from "./patient.model.js";
+import { ROLES } from "../../core/auth/roles.js";
+
+function isDoctor(user) {
+  if (!user) return false;
+  // Hỗ trợ cả kiểu string hoặc số
+  return user.role === "DOCTOR" || user.role === ROLES?.DOCTOR || user.vaiTro === "DOCTOR";
+}
 
 export const PatientController = {
   // GET /api/v1/patients/me
@@ -36,7 +43,7 @@ export const PatientController = {
     } catch (e) { next(e); }
   },
 
-  // GET /api/v1/patients  (ADMIN)
+  // GET /api/v1/patients  (ADMIN|DOCTOR)
   async list(req, res, next) {
     try {
       const rs = await PatientService.list(req.query || {});
@@ -63,6 +70,23 @@ export const PatientController = {
 
       const ok = await PatientService.deleteProfile(ma); 
       res.json({ deleted: ok });
+    } catch (e) { next(e); }
+  },
+
+  /* ====== MỚI: GET /api/v1/doctors/:maBacSi/patients ====== */
+  async listByDoctor(req, res, next) {
+    try {
+      const maBacSi = String(req.params.maBacSi || "");
+      if (!maBacSi) throw new AppError(400, "Thiếu maBacSi");
+
+      // Nếu là bác sĩ thì chỉ được xem bệnh nhân của chính mình
+      const u = req.user || {};
+      if (isDoctor(u) && u.maBacSi && u.maBacSi !== maBacSi) {
+        throw new AppError(403, "Không được phép xem bệnh nhân của bác sĩ khác");
+      }
+
+      const rs = await PatientService.listByDoctor(maBacSi, req.query || {});
+      res.json(rs); // { items, total }
     } catch (e) { next(e); }
   },
 };

@@ -125,9 +125,7 @@ export default function AdminShifts() {
                 <option value="0">Ngưng</option>
               </select>
             </div>
-            <div className="col-md-2">
-              <button className="btn btn-outline-secondary w-100" onClick={load}>Tải lại</button>
-            </div>
+            
           </div>
 
           {/* Vùng bảng scroll + header sticky */}
