@@ -4,16 +4,18 @@ export const UsersModel = {
   async findByUsername(tenDangNhap) {
     const [rows] = await pool.query(
       `SELECT 
-         mauser       AS maUser,
-         username     AS tenDangNhap,
-         passwordhash AS matKhauHash,
+         maUser,
+         tenDangNhap,
+         matKhauHash,
+         hoTen,
+         soDienThoai,
          email,
-         role         AS vaiTro,
-         trangthai    AS trangThai,
-         mabacsi      AS maBacSi,
-         createdat    AS ngayTao
+         vaiTro,
+         trangThai,
+         maBacSi,
+         ngayTao
        FROM users
-      WHERE username=? LIMIT 1`,
+      WHERE tenDangNhap=? LIMIT 1`,
       [tenDangNhap] 
     );
     return rows[0] || null;
@@ -21,7 +23,7 @@ export const UsersModel = {
 
   async findByEmail(email) {
     const [rows] = await pool.query(
-      `SELECT mauser AS maUser FROM users WHERE email=? LIMIT 1`,
+      `SELECT maUser FROM users WHERE email=? LIMIT 1`,
       [email]
     );
     return rows[0] || null;
@@ -30,16 +32,18 @@ export const UsersModel = {
   async findByMa(maUser) {
     const [rows] = await pool.query(
       `SELECT 
-         mauser       AS maUser,
-         username     AS tenDangNhap,
-         passwordhash AS matKhauHash,
+         maUser,
+         tenDangNhap,
+         matKhauHash,
+         hoTen,
+         soDienThoai,
          email,
-         role         AS vaiTro,
-         trangthai    AS trangThai,
-         mabacsi      AS maBacSi,
-         createdat    AS ngayTao
+         vaiTro,
+         trangThai,
+         maBacSi,
+         ngayTao
        FROM users
-      WHERE mauser=? LIMIT 1`,
+      WHERE maUser=? LIMIT 1`,
       [maUser]
     );
     return rows[0] || null;
@@ -47,51 +51,53 @@ export const UsersModel = {
 
   async findByMaBacSi(maBacSi) {
     const [rows] = await pool.query(
-      `SELECT mauser AS maUser FROM users WHERE mabacsi=? LIMIT 1`,
+      `SELECT maUser FROM users WHERE maBacSi=? LIMIT 1`,
       [maBacSi]
     );
     return rows[0] || null;
   },
 
   // tạo user (không link bác sĩ)
-  async create({ tenDangNhap, matKhauHash, email = null, vaiTro = 2 }) {
+  async create({ tenDangNhap, matKhauHash, email = null, vaiTro = 2, hoTen = null, soDienThoai = null }) {
     await pool.query(
-      `INSERT INTO users (username, passwordhash, email, role, trangthai)
-       VALUES (?, ?, ?, ?, 1)`,
-      [tenDangNhap, matKhauHash, email, vaiTro]
+      `INSERT INTO users (tenDangNhap, matKhauHash, hoTen, soDienThoai, email, vaiTro, trangThai, ngayTao)
+       VALUES (?, ?, ?, ?, ?, ?, 1, NOW())`,
+      [tenDangNhap, matKhauHash, hoTen, soDienThoai, email, vaiTro]
     );
     return await this.findByUsername(tenDangNhap);
   },
 
   // tạo user & gán mã bác sĩ — dùng ngoài transaction
-  async createDoctorUser({ tenDangNhap, matKhauHash, email = null, maBacSi }) {
+  async createDoctorUser({ tenDangNhap, matKhauHash, email = null, maBacSi, hoTen = null, soDienThoai = null }) {
     await pool.query(
-      `INSERT INTO users (username, passwordhash, email, role, trangthai, mabacsi, createdat)
-       VALUES (?, ?, ?, 2, 1, ?, NOW())`,
-      [tenDangNhap, matKhauHash, email, maBacSi]
+      `INSERT INTO users (tenDangNhap, matKhauHash, hoTen, soDienThoai, email, vaiTro, trangThai, maBacSi, ngayTao)
+       VALUES (?, ?, ?, ?, ?, 2, 1, ?, NOW())`,
+      [tenDangNhap, matKhauHash, hoTen, soDienThoai, email, maBacSi]
     );
     return await this.findByUsername(tenDangNhap);
   },
 
   // tạo trong transaction (nếu muốn reuse)
-  async createWithConn({ tenDangNhap, matKhauHash, email = null, vaiTro = 2 }, conn) {
+  async createWithConn({ tenDangNhap, matKhauHash, email = null, vaiTro = 2, hoTen = null, soDienThoai = null }, conn) {
     await conn.query(
-      `INSERT INTO users (username, passwordhash, email, role, trangthai)
-       VALUES (?, ?, ?, ?, 1)`,
-      [tenDangNhap, matKhauHash, email, vaiTro]
+      `INSERT INTO users (tenDangNhap, matKhauHash, hoTen, soDienThoai, email, vaiTro, trangThai, ngayTao)
+       VALUES (?, ?, ?, ?, ?, ?, 1, NOW())`,
+      [tenDangNhap, matKhauHash, hoTen, soDienThoai, email, vaiTro]
     );
     const [rows] = await conn.query(
       `SELECT 
-         mauser    AS maUser,
-         username  AS tenDangNhap,
-         passwordhash AS matKhauHash,
+         maUser,
+         tenDangNhap,
+         matKhauHash,
+         hoTen,
+         soDienThoai,
          email,
-         role      AS vaiTro,
-         trangthai AS trangThai,
-         mabacsi   AS maBacSi,
-         createdat AS ngayTao
+         vaiTro,
+         trangThai,
+         maBacSi,
+         ngayTao
        FROM users
-      WHERE username=? LIMIT 1`,
+      WHERE tenDangNhap=? LIMIT 1`,
       [tenDangNhap]
     );
     return rows[0] || null;
@@ -103,15 +109,18 @@ export const UsersModel = {
     const vals = [];
 
     if (q) {
-      conds.push(`(username LIKE CONCAT('%', ?, '%') OR email LIKE CONCAT('%', ?, '%'))`);
-      vals.push(q, q);
+      conds.push(`(tenDangNhap LIKE CONCAT('%', ?, '%')
+                OR email LIKE CONCAT('%', ?, '%')
+                OR hoTen LIKE CONCAT('%', ?, '%')
+                OR soDienThoai LIKE CONCAT('%', ?, '%'))`);
+      vals.push(q, q, q, q);
     }
     if (vaiTro !== undefined && vaiTro !== null && String(vaiTro) !== "") {
-      conds.push(`role = ?`);
+      conds.push(`vaiTro = ?`);
       vals.push(Number(vaiTro));
     }
     if (trangThai !== undefined && trangThai !== null && String(trangThai) !== "") {
-      conds.push(`trangthai = ?`);
+      conds.push(`trangThai = ?`);
       vals.push(Number(trangThai));
     }
 
@@ -125,16 +134,18 @@ export const UsersModel = {
 
     const [rows] = await pool.query(
       `SELECT
-        mauser       AS maUser,
-        username     AS tenDangNhap,
+        maUser,
+        tenDangNhap,
+        hoTen,
+        soDienThoai,
         email,
-        role         AS vaiTro,
-        trangthai    AS trangThai,
-        mabacsi      AS maBacSi,
-        createdat    AS ngayTao
+        vaiTro,
+        trangThai,
+        maBacSi,
+        ngayTao
        FROM users
        ${where}
-       ORDER BY createdat DESC, mauser DESC
+       ORDER BY ngayTao DESC, maUser DESC
        LIMIT ? OFFSET ?`,
       [...vals, Number(limit), Number(offset)]
     );
@@ -144,19 +155,29 @@ export const UsersModel = {
 
   // cập nhật động
   async update(maUser, patch = {}) {
-    const allow = ["email", "role", "trangthai", "mabacsi", "passwordhash"];
+    const map = { // key input → cột DB
+      email: "email",
+      role: "vaiTro",
+      trangthai: "trangThai",
+      mabacsi: "maBacSi",
+      passwordhash: "matKhauHash",
+      hoten: "hoTen",
+      sodienthoai: "soDienThoai",
+    };
+
     const fields = [];
     const vals = [];
-    for (const k of allow) {
+    for (const k in map) {
       if (patch[k] !== undefined) {
-        fields.push(`${k}=?`);
+        fields.push(`${map[k]}=?`);
         vals.push(patch[k]);
       }
     }
     if (!fields.length) return { affected: 0 };
+
     vals.push(maUser);
     const [rs] = await pool.query(
-      `UPDATE users SET ${fields.join(", ")} WHERE mauser=?`,
+      `UPDATE users SET ${fields.join(", ")} WHERE maUser=?`,
       vals
     );
     return { affected: rs.affectedRows };
@@ -164,7 +185,7 @@ export const UsersModel = {
 
   // xóa
   async remove(maUser) {
-    const [rs] = await pool.query(`DELETE FROM users WHERE mauser=?`, [maUser]);
+    const [rs] = await pool.query(`DELETE FROM users WHERE maUser=?`, [maUser]);
     return { affected: rs.affectedRows };
   },
 };

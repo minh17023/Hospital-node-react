@@ -8,7 +8,7 @@ const DEFAULT_LIMIT = 10;
 export default function AdminDoctors() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(null); // null = BE không trả; number = BE có trả
 
   // 🔎 FE search (debounce)
   const [keyword, setKeyword] = useState("");
@@ -23,7 +23,10 @@ export default function AdminDoctors() {
   const [confirmDel, setConfirmDel] = useState(null);
 
   const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+  const totalPages = useMemo(() => {
+    if (typeof total !== "number") return 1;
+    return Math.max(1, Math.ceil(total / limit));
+  }, [total, limit]);
 
   // --- debounce keyword 350ms
   useEffect(() => {
@@ -39,11 +42,17 @@ export default function AdminDoctors() {
     setLoading(true);
     try {
       const { data } = await client.get("/doctors", {
-        params: { keyword: keywordDebounced || undefined, limit, offset },
+        // BE mới: q + limit + offset
+        params: { q: keywordDebounced || undefined, limit, offset },
       });
       if (id !== runId.current) return; // bỏ response cũ
       setItems(data.items || []);
-      setTotal(Number(data.total || 0));
+      // Nếu BE có total thì set, không thì để null
+      setTotal(
+        typeof data.total === "number"
+          ? data.total
+          : null
+      );
     } catch (e) {
       if (id !== runId.current) return;
       console.error(e);
@@ -56,7 +65,14 @@ export default function AdminDoctors() {
   // auto load theo keywordDebounced / offset
   useEffect(() => { load(); }, [keywordDebounced, limit, offset]); // eslint-disable-line
 
-  const next = () => setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
+  const next = () => {
+    if (typeof total === "number") {
+      setOffset((o) => Math.min(o + limit, Math.max(0, (totalPages - 1) * limit)));
+    } else {
+      // Khi không có total, dựa vào items.length === limit để đoán còn trang sau
+      if (items.length === limit) setOffset((o) => o + limit);
+    }
+  };
   const prev = () => setOffset((o) => Math.max(0, o - limit));
 
   const clearFilters = () => {
@@ -64,6 +80,8 @@ export default function AdminDoctors() {
     setOffset(0);
     // effect sẽ tự load
   };
+
+  const hasNext = typeof total === "number" ? page < totalPages : items.length === limit;
 
   return (
     <Layout>
@@ -123,7 +141,7 @@ export default function AdminDoctors() {
                   {items.map((it) => (
                     <tr key={it.maBacSi}>
                       <td><span className="badge bg-secondary">{it.maBacSi}</span></td>
-                      <td>{it.tenBacSi || it.hoTen || "-"}</td>
+                      <td>{it.tenBacSi || "-"}</td>
                       <td className="text-nowrap">{it.tenChuyenKhoa || it.maChuyenKhoa}</td>
                       <td className="text-nowrap">{it.phiKham != null ? Intl.NumberFormat().format(it.phiKham) : "-"}</td>
                       <td className="text-center">
@@ -137,7 +155,7 @@ export default function AdminDoctors() {
                         </button>
                         <button
                           className="btn btn-sm btn-outline-danger"
-                          onClick={() => setConfirmDel({ maBacSi: it.maBacSi, tenBacSi: it.tenBacSi || it.hoTen })}
+                          onClick={() => setConfirmDel({ maBacSi: it.maBacSi, tenBacSi: it.tenBacSi })}
                         >
                           Xóa
                         </button>
@@ -150,10 +168,13 @@ export default function AdminDoctors() {
 
             {/* Pagination – ngoài vùng scroll */}
             <div className="d-flex justify-content-between align-items-center mt-3">
-              <small className="text-muted">Tổng: {total} • Trang {page}/{totalPages}</small>
+              <small className="text-muted">
+                {typeof total === "number" ? <>Tổng: {total} • </> : null}
+                Trang {page}{typeof total === "number" ? <>/{totalPages}</> : null}
+              </small>
               <div>
                 <button className="btn btn-outline-secondary me-2" disabled={page <= 1} onClick={prev}>← Trước</button>
-                <button className="btn btn-outline-secondary" disabled={page >= totalPages} onClick={next}>Sau →</button>
+                <button className="btn btn-outline-secondary" disabled={!hasNext} onClick={next}>Sau →</button>
               </div>
             </div>
           </div>
@@ -169,6 +190,7 @@ export default function AdminDoctors() {
             try {
               await client.post("/doctors", payload);
               setShowCreate(false);
+              setOffset(0);
               await load();
             } catch (e) {
               console.error(e);
@@ -180,7 +202,7 @@ export default function AdminDoctors() {
 
       {editItem && (
         <DoctorModal
-          title={`Sửa bác sĩ ${editItem.tenBacSi || editItem.hoTen || editItem.maBacSi}`}
+          title={`Sửa bác sĩ ${editItem.tenBacSi || editItem.maBacSi}`}
           data={editItem}
           editMode
           onClose={() => setEditItem(null)}
@@ -205,6 +227,8 @@ export default function AdminDoctors() {
             try {
               await client.delete(`/doctors/${encodeURIComponent(confirmDel.maBacSi)}`);
               setConfirmDel(null);
+              // nếu trang hiện tại rỗng sau khi xóa thì lùi trang
+              if (items.length === 1 && offset > 0) setOffset((o) => Math.max(0, o - limit));
               await load();
             } catch (e) {
               const msg = e?.response?.data?.message || "";
@@ -270,11 +294,9 @@ function SpecialtySelect({ value, onChange, disabled = false, size = "sm" }) {
 function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) {
   useModalChrome(onClose);
 
-  // core fields
-  const [maNhanVien, setMaNhanVien] = useState(data.maNhanVien || "");
+  // core fields (DB mới)
+  const [tenBacSi, setTenBacSi] = useState(data.tenBacSi || "");
   const [maChuyenKhoa, setMaChuyenKhoa] = useState(data.maChuyenKhoa || "");
-  const [maHocVi, setMaHocVi] = useState(data.maHocVi || "");
-  const [maHocHam, setMaHocHam] = useState(data.maHocHam || "");
   const [bangCap, setBangCap] = useState(data.bangCap || "");
   const [chungChi, setChungChi] = useState(data.chungChi || "");
   const [kinhNghiem, setKinhNghiem] = useState(data.kinhNghiem ?? 0);
@@ -289,14 +311,12 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
 
   const submit = (e) => {
     e.preventDefault();
-    if (!editMode && (!maNhanVien || !maChuyenKhoa)) {
-      return alert("Vui lòng nhập mã nhân viên & chuyên khoa");
+    if (!tenBacSi || !maChuyenKhoa) {
+      return alert("Vui lòng nhập HỌ TÊN BÁC SĨ và CHUYÊN KHOA");
     }
     const payload = {
-      ...(editMode ? {} : { maNhanVien }),
+      tenBacSi,
       maChuyenKhoa,
-      maHocVi: emptyToNull(maHocVi),
-      maHocHam: emptyToNull(maHocHam),
       bangCap: emptyToNull(bangCap),
       chungChi: emptyToNull(chungChi),
       kinhNghiem: n(kinhNghiem),
@@ -336,15 +356,13 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
               <div className="row g-3">
                 <div className="col-md-6 col-xl-6">
                   <label className="form-label small">
-                    Mã nhân viên {editMode ? "" : <span className="text-danger">*</span>}
+                    Họ tên bác sĩ <span className="text-danger">*</span>
                   </label>
                   <input
                     className="form-control form-control-sm"
-                    value={maNhanVien}
-                    onChange={(e) => setMaNhanVien(e.target.value)}
-                    readOnly={!!editMode}
-                    placeholder={editMode ? "Không thể sửa mã nhân viên" : ""}
-                    autoFocus={!editMode}
+                    value={tenBacSi}
+                    onChange={(e) => setTenBacSi(e.target.value)}
+                    autoFocus
                   />
                 </div>
 
@@ -357,14 +375,6 @@ function DoctorModal({ title, data = {}, editMode = false, onClose, onSubmit }) 
               </div>
 
               <div className="row g-3 mt-1">
-                <div className="col-md-6 col-xl-4">
-                  <label className="form-label small">Mã học vị</label>
-                  <input className="form-control form-control-sm" value={maHocVi} onChange={(e) => setMaHocVi(e.target.value)} />
-                </div>
-                <div className="col-md-6 col-xl-4">
-                  <label className="form-label small">Mã học hàm</label>
-                  <input className="form-control form-control-sm" value={maHocHam} onChange={(e) => setMaHocHam(e.target.value)} />
-                </div>
                 <div className="col-md-12 col-xl-4">
                   <label className="form-label small">Bằng cấp</label>
                   <input className="form-control form-control-sm" value={bangCap} onChange={(e) => setBangCap(e.target.value)} />

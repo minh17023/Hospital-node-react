@@ -7,6 +7,7 @@ export const UsersService = {
   findById: (ma) => UsersModel.findByMa(ma),
 
   async ensureUsernameFree(tenDangNhap) {
+    if (!tenDangNhap) return;
     const existed = await UsersModel.findByUsername(tenDangNhap);
     if (existed) throw new AppError(409, "Tên đăng nhập đã tồn tại");
   },
@@ -19,7 +20,7 @@ export const UsersService = {
 
   create: (data) => UsersModel.create(data),
 
-  async createUserForExistingDoctor({ tenDangNhap, matKhauHash, email = null, maBacSi }) {
+  async createUserForExistingDoctor({ tenDangNhap, matKhauHash, email = null, maBacSi, hoTen = null, soDienThoai = null }) {
     if (!tenDangNhap || !matKhauHash || !maBacSi) {
       throw new AppError(422, "Thiếu tenDangNhap/matKhauHash/maBacSi");
     }
@@ -35,20 +36,17 @@ export const UsersService = {
     const linked = await UsersModel.findByMaBacSi(maBacSi);
     if (linked) throw new AppError(409, "Bác sĩ đã có tài khoản");
 
-    const u = await UsersModel.createDoctorUser({ tenDangNhap, matKhauHash, email, maBacSi });
+    const u = await UsersModel.createDoctorUser({ tenDangNhap, matKhauHash, email, maBacSi, hoTen, soDienThoai });
     return u;
   },
 
-  /* ===== mới thêm cho GET/LIST/PUT/DELETE ===== */
   list: (query) => UsersModel.list(query),
 
   async update(maUser, body = {}) {
-    // Nếu cập nhật liên kết bác sĩ: phải tồn tại và không bị trùng với user khác
+    // Validate liên kết bác sĩ nếu có
     if (body.mabacsi !== undefined) {
       const newBS = body.mabacsi;
-      if (newBS === null || newBS === "" || newBS === 0) {
-        // cho phép gỡ link
-      } else {
+      if (newBS && newBS !== "" && newBS !== 0) {
         const [bs] = await pool.query(`SELECT 1 FROM bacsi WHERE maBacSi=? LIMIT 1`, [newBS]);
         if (!bs.length) throw new AppError(404, "Không tìm thấy bác sĩ");
 

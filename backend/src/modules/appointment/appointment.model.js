@@ -115,14 +115,13 @@ export const AppointmentModel = {
     const [rows] = await pool.query(
       `SELECT lh.*,
               bn.hoTen        AS tenBenhNhan,
-              nv.hoTen        AS tenBacSi,
+              bs.tenBacSi     AS tenBacSi,
               ck.tenChuyenKhoa,
               pk.tenPhongKham,
               clv.tenCaLamViec
          FROM lichhen lh
     LEFT JOIN benhnhan   bn ON bn.maBenhNhan   = lh.maBenhNhan
     LEFT JOIN bacsi      bs ON bs.maBacSi      = lh.maBacSi
-    LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
     LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
     LEFT JOIN lichlamviec llv
            ON llv.maBacSi     = lh.maBacSi
@@ -159,13 +158,12 @@ export const AppointmentModel = {
 
     const [rows] = await pool.query(
       `SELECT lh.*,
-              nv.hoTen AS tenBacSi,
+              bs.tenBacSi AS tenBacSi,
               ck.tenChuyenKhoa,
               pk.tenPhongKham,
               S.tenCaLamViec
          FROM lichhen lh
     LEFT JOIN bacsi      bs  ON bs.maBacSi      = lh.maBacSi
-    LEFT JOIN nhanvien   nv  ON nv.maNhanVien   = bs.maNhanVien
     LEFT JOIN chuyenkhoa ck  ON ck.maChuyenKhoa = lh.maChuyenKhoa
     LEFT JOIN (
       SELECT llv.maLichLamViec, llv.maBacSi, llv.ngayLamViec, llv.maPhongKham,
@@ -244,7 +242,7 @@ export const AppointmentModel = {
     const [rows] = await pool.query(
       `SELECT
         lh.*,
-        nv.hoTen AS tenBacSi,
+        bs.tenBacSi AS tenBacSi,
         ck.tenChuyenKhoa,
         (
           SELECT pk.tenPhongKham
@@ -269,7 +267,6 @@ export const AppointmentModel = {
         ) AS tenCaLamViec
      FROM lichhen lh
 LEFT JOIN bacsi      bs ON bs.maBacSi      = lh.maBacSi
-LEFT JOIN nhanvien   nv ON nv.maNhanVien   = bs.maNhanVien
 LEFT JOIN chuyenkhoa ck ON ck.maChuyenKhoa = lh.maChuyenKhoa
     ${whereSql}
  ORDER BY lh.maLichHen DESC, lh.gioHen DESC

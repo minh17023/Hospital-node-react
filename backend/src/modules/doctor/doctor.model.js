@@ -3,28 +3,10 @@ import { pool } from "../../config/db.js";
 const T = "bacsi";
 
 export const DoctorModel = {
-  async _nvExists(maNhanVien) {
-    const [r] = await pool.query(
-      "SELECT 1 FROM nhanvien WHERE maNhanVien=? LIMIT 1",
-      [maNhanVien]
-    );
-    return !!r[0];
-  },
-
-  async _nvUsed(maNhanVien) {
-    const [r] = await pool.query(
-      `SELECT 1 FROM ${T} WHERE maNhanVien=? LIMIT 1`,
-      [maNhanVien]
-    );
-    return !!r[0];
-  },
-
   async create(
     {
-      maNhanVien,
+      tenBacSi,
       maChuyenKhoa,
-      maHocVi = null,
-      maHocHam = null,
       bangCap = null,
       chungChi = null,
       kinhNghiem = 0,
@@ -39,66 +21,44 @@ export const DoctorModel = {
     },
     conn = pool
   ) {
-    if (!maNhanVien || !maChuyenKhoa) {
-      throw Object.assign(new Error("Missing maNhanVien/maChuyenKhoa"), { code: "VALIDATION" });
+    if (!tenBacSi || !maChuyenKhoa) {
+      throw Object.assign(new Error("Missing tenBacSi/maChuyenKhoa"), { code: "VALIDATION" });
     }
 
-    if (!(await this._nvExists(maNhanVien))) {
-      throw Object.assign(new Error("maNhanVien không tồn tại"), { code: "NOT_FOUND" });
-    }
-    if (await this._nvUsed(maNhanVien)) {
-      throw Object.assign(new Error("maNhanVien đã gắn với một bác sĩ khác"), { code: "DUPLICATE" });
-    }
-
-    // Trigger DB sẽ sinh maBacSi
     await conn.query(
       `INSERT INTO ${T}
-        (maNhanVien, maChuyenKhoa, maHocVi, maHocHam, bangCap, chungChi, kinhNghiem,
+        (tenBacSi, maChuyenKhoa, bangCap, chungChi, kinhNghiem,
          chuyenMonChinh, chuyenMonPhu, soLuongBenhNhanToiDa,
          thoiGianKhamBinhQuan, ngayBatDauCongTac, phiKham,
          ghiChu, trangThai)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
       [
-        maNhanVien, maChuyenKhoa, maHocVi, maHocHam, bangCap, chungChi, kinhNghiem,
+        tenBacSi, maChuyenKhoa, bangCap, chungChi, kinhNghiem,
         chuyenMonChinh, chuyenMonPhu, soLuongBenhNhanToiDa,
         thoiGianKhamBinhQuan, ngayBatDauCongTac, phiKham, ghiChu, trangThai,
       ]
     );
 
-    // Lấy lại bản ghi vừa tạo – join nhanvien để có tên hiển thị
     const [rows] = await conn.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+      `SELECT b.*, ck.tenChuyenKhoa
          FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
          JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
-        WHERE b.maNhanVien=? AND b.maChuyenKhoa=?
+        WHERE b.tenBacSi=? AND b.maChuyenKhoa=?
         ORDER BY b.maBacSi DESC
         LIMIT 1`,
-      [maNhanVien, maChuyenKhoa]
+      [tenBacSi, maChuyenKhoa]
     );
     return rows[0] || null;
   },
 
   async findByMa(maBacSi) {
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+      `SELECT b.*, ck.tenChuyenKhoa
          FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
          JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         WHERE b.maBacSi = ? LIMIT 1`,
       [maBacSi]
-    );
-    return rows[0] || null;
-  },
-
-  async findByNhanVien(maNhanVien) {
-    const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
-         FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
-         JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
-        WHERE b.maNhanVien = ? LIMIT 1`,
-      [maNhanVien]
     );
     return rows[0] || null;
   },
@@ -110,7 +70,7 @@ export const DoctorModel = {
     if (maChuyenKhoa) { conds.push("b.maChuyenKhoa = ?"); vals.push(String(maChuyenKhoa)); }
     if (trangThai !== null && trangThai !== undefined) { conds.push("b.trangThai = ?"); vals.push(Number(trangThai)); }
     if (q) {
-      conds.push("(nv.hoTen LIKE ? OR b.chuyenMonChinh LIKE ? OR b.chuyenMonPhu LIKE ? OR ck.tenChuyenKhoa LIKE ?)");
+      conds.push("(b.tenBacSi LIKE ? OR b.chuyenMonChinh LIKE ? OR b.chuyenMonPhu LIKE ? OR ck.tenChuyenKhoa LIKE ?)");
       vals.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
     if (feeMin != null) { conds.push("b.phiKham >= ?"); vals.push(Number(feeMin)); }
@@ -118,9 +78,8 @@ export const DoctorModel = {
 
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+      `SELECT b.*, ck.tenChuyenKhoa
          FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
          JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         ${where}
         ORDER BY b.maBacSi DESC
@@ -136,9 +95,8 @@ export const DoctorModel = {
     if (trangThai !== null && trangThai !== undefined) { conds.push("b.trangThai = ?"); vals.push(Number(trangThai)); }
     const where = `WHERE ${conds.join(" AND ")}`;
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+      `SELECT b.*, ck.tenChuyenKhoa
          FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
          JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
         ${where}
         ORDER BY b.maBacSi DESC
@@ -150,8 +108,7 @@ export const DoctorModel = {
 
   async update(maBacSi, patch) {
     const allow = [
-      "maChuyenKhoa",
-      "maHocVi", "maHocHam",
+      "tenBacSi", "maChuyenKhoa",
       "bangCap", "chungChi", "kinhNghiem",
       "chuyenMonChinh", "chuyenMonPhu", "soLuongBenhNhanToiDa",
       "thoiGianKhamBinhQuan", "ngayBatDauCongTac", "phiKham",
@@ -169,15 +126,15 @@ export const DoctorModel = {
     const [rs] = await pool.query(`DELETE FROM ${T} WHERE maBacSi = ?`, [maBacSi]);
     return rs.affectedRows || 0;
   },
- 
+
+  // users.maBacSi ↔ bacsi.maBacSi
   async findByUser(maUser) {
     const [rows] = await pool.query(
-      `SELECT b.*, ck.tenChuyenKhoa, nv.hoTen AS tenBacSi
+      `SELECT b.*, ck.tenChuyenKhoa, u.hoTen AS tenUser
          FROM ${T} b
-         JOIN nhanvien   nv ON nv.maNhanVien = b.maNhanVien
          JOIN chuyenkhoa ck ON ck.maChuyenKhoa = b.maChuyenKhoa
-         JOIN users      u  ON u.mabacsi     = b.maBacSi
-        WHERE u.mauser = ?
+         JOIN users      u  ON u.maBacSi     = b.maBacSi
+        WHERE u.maUser = ?
         LIMIT 1`,
       [String(maUser)]
     );

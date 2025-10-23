@@ -24,13 +24,12 @@ export const UsersController = {
     try {
       const u = await UsersService.findById(req.params.maUser);
       if (!u) throw new AppError(404, "Không tìm thấy user");
-      // Ẩn hash khi trả về
-      delete u.matKhauHash;
+      delete u.matKhauHash; // ẩn hash
       res.json({ user: u });
     } catch (e) { next(e); }
   },
 
-  /* PUT /users/:maUser  (email, role, trangthai, mabacsi, password) */
+  /* PUT /users/:maUser  (email, role|vaiTro, trangThai|status, maBacSi, matKhau, hoTen, soDienThoai) */
   async update(req, res, next) {
     try {
       const maUser = req.params.maUser;
@@ -41,8 +40,9 @@ export const UsersController = {
       if (req.body.trangThai !== undefined || req.body.status !== undefined)
         body.trangthai = Number(req.body.trangThai ?? req.body.status);
       if (req.body.maBacSi !== undefined) body.mabacsi = req.body.maBacSi || null;
+      if (req.body.hoTen !== undefined) body.hoten = req.body.hoTen || null;
+      if (req.body.soDienThoai !== undefined) body.sodienthoai = req.body.soDienThoai || null;
 
-      // đổi mật khẩu (nếu có)
       if (req.body.matKhau !== undefined && String(req.body.matKhau).trim() !== "") {
         body.passwordhash = await hash(String(req.body.matKhau), SALT);
       }

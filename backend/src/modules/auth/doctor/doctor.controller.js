@@ -1,8 +1,8 @@
 import { UsersService } from "../../users/users.service.js";
-import { hash, compare } from "../../../core/utils/passwords.js";   
+import { hash, compare } from "../../../core/utils/passwords.js";
 import { AppError } from "../../../core/http/error.js";
-import { signAccessToken, signRefreshToken } from "../../../core/utils/jwt.js"; 
-import { pool } from "../../../config/db.js";                   
+import { signAccessToken, signRefreshToken } from "../../../core/utils/jwt.js";
+import { pool } from "../../../config/db.js";
 
 const SALT = 10;
 
@@ -39,7 +39,7 @@ export const AdminDoctorUserController = {
   },
 };
 
-/* ========== DOCTOR: đăng nhập (đã fix) ========== */
+/* ========== DOCTOR: đăng nhập ========== */
 export const DoctorAuthController = {
   async login(req, res, next) {
     try {
@@ -58,17 +58,14 @@ export const DoctorAuthController = {
       const ok = await compare(matKhau, user.matKhauHash);
       if (!ok) throw new AppError(401, "Sai thông tin đăng nhập");
 
-      // 4) Lấy họ tên từ bảng nhanvien nếu user đã link maBacSi
-      let hoTen = null;
-      if (user.maBacSi) {
+      // 4) Lấy họ tên: ưu tiên users.hoTen; nếu trống và có maBacSi thì fallback bacsi.tenBacSi
+      let hoTen = user.hoTen ?? null;
+      if ((!hoTen || String(hoTen).trim() === "") && user.maBacSi) {
         const [rows] = await pool.query(
-          `SELECT nv.hoTen
-             FROM bacsi b
-             JOIN nhanvien nv ON nv.maNhanVien = b.maNhanVien
-            WHERE b.maBacSi=? LIMIT 1`,
+          `SELECT tenBacSi FROM bacsi WHERE maBacSi=? LIMIT 1`,
           [user.maBacSi]
         );
-        hoTen = rows[0]?.hoTen ?? null;
+        hoTen = rows[0]?.tenBacSi ?? null;
       }
 
       // 5) JWT

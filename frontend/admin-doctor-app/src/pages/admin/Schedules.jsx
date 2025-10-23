@@ -367,7 +367,7 @@ export default function AdminSchedules() {
   const [loading, setLoading] = useState(false);
 
   // paging (12/trang cố định)
-  const [limit] = useState(12);
+  const [limit] = useState(10);
   const [offset, setOffset] = useState(0);
   const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);

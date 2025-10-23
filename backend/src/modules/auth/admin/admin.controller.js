@@ -14,8 +14,8 @@ export const AdminAuthController = {
 
       const ok = await compare(matKhau, user.matKhauHash);
       if (!ok) throw new AppError(401, "Sai thông tin đăng nhập");
-
-      const accessToken = signAccessToken(user);   // JWT dùng maUser
+      
+      const accessToken = signAccessToken(user)
       const refreshToken = signRefreshToken(user);
 
       res.json({

@@ -1,4 +1,3 @@
-// frontend/admin-doctor-app/src/pages/doctor/DoctorHome.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "../../components/Layout";
 import client from "../../api/client";
@@ -63,15 +62,6 @@ export default function DoctorHome() {
         params: { from, to, maBacSi },
         signal: controller.signal,
       });
-      
-      setSum({
-        range: data?.range || { from, to },
-        registered: Number(data?.registered || 0),
-        inProgress: Number(data?.inProgress || 0),
-        done: Number(data?.done || 0),
-        noShow: Number(data?.noShow || 0),
-        cancelled: Number(data?.cancelled || 0),
-      });
 
       if (id !== runId.current) return;
 
@@ -94,7 +84,11 @@ export default function DoctorHome() {
 
   useEffect(() => {
     if (!maBacSi) return; // thiếu mã -> chỉ hiển thị cảnh báo
-    if (from && to && from > to) return;
+    // Bảo toàn from ≤ to
+    if (from && to && from > to) {
+      setTo(from);
+      return;
+    }
     load();
     return () => {
       runId.current++;
@@ -103,6 +97,7 @@ export default function DoctorHome() {
   }, [from, to, maBacSi]);
 
   /* ====== charts ====== */
+  // Thứ tự dữ liệu: Đang khám, Đã đăng ký, Đã khám, Không đến, Hủy lịch
   const donutSeries = useMemo(
     () => [
       sum.inProgress || 0,
@@ -116,7 +111,7 @@ export default function DoctorHome() {
   const donutOptions = useMemo(
     () => ({
       chart: { type: "donut", toolbar: { show: false } },
-      labels: ["Đã đăng ký", "Đang khám", "Đã khám", "Không đến", "Hủy lịch"],
+      labels: ["Đã đăng ký", "Đang Khám", "Đã khám", "Không đến", "Hủy lịch"],
       dataLabels: { enabled: true, formatter: (val) => `${val.toFixed(1)}%` },
       legend: { position: "bottom" },
       tooltip: { y: { formatter: (v) => `${v} ca` } },
@@ -143,7 +138,7 @@ export default function DoctorHome() {
   const barOptions = useMemo(
     () => ({
       chart: { type: "bar", toolbar: { show: false } },
-      xaxis: { categories: ["Đã đăng kí", "Đang khám", "Đã khám", "Không đến", "Hủy lịch"] },
+      xaxis: { categories: ["Đã đăng ký", "Đang khám", "Đã khám", "Không đến", "Hủy lịch"] },
       plotOptions: { bar: { borderRadius: 6, columnWidth: "45%" } },
       dataLabels: { enabled: false },
       tooltip: { y: { formatter: (v) => `${v} ca` } },
@@ -190,8 +185,7 @@ export default function DoctorHome() {
                 className="form-control"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                min={from || undefined}
-                max={todayYMD()}
+                min={from || undefined}   /* CHO PHÉP chọn mọi ngày ≥ 'from' (không giới hạn max) */
               />
             </div>
             <div className="col-md-6 d-flex align-items-end gap-2">
@@ -205,7 +199,7 @@ export default function DoctorHome() {
           <div className="row g-3 mb-3">
             {[
               { k: "inProgress", w: 2, label: "Đã đăng ký" },
-              { k: "registered", w: 2, label: "Đang khám" },
+              { k: "registered", w: 2, label: "Đang Khám" },
               { k: "done", w: 2, label: "Đã khám" },
               { k: "noShow", w: 3, label: "Không đến" },
               { k: "cancelled", w: 3, label: "Hủy lịch" },

@@ -71,8 +71,12 @@ export default function AdminHome() {
     }
   }
 
+  // Bảo toàn điều kiện from ≤ to.
   useEffect(() => {
-    if (from && to && from > to) return;
+    if (from && to && from > to) {
+      setTo(from); // luôn đảm bảo Đến ngày ≥ Từ ngày
+      return;
+    }
     load();
     return () => {
       runId.current++;
@@ -140,13 +144,25 @@ export default function AdminHome() {
           <div className="row g-2 mb-3">
             <div className="col-md-3">
               <label className="form-label small">Từ ngày</label>
-              <input type="date" className="form-control" value={from}
-                     onChange={(e) => setFrom(e.target.value)} max={to || undefined}/>
+              <input
+                type="date"
+                className="form-control"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                /* có thể đặt max={to} nếu muốn ngăn chọn quá 'Đến ngày'.
+                   Không bắt buộc vì useEffect đã tự kéo 'to' theo 'from'. */
+              />
             </div>
             <div className="col-md-3">
               <label className="form-label small">Đến ngày</label>
-              <input type="date" className="form-control" value={to}
-                     onChange={(e) => setTo(e.target.value)} min={from || undefined} max={todayYMD()}/>
+              <input
+                type="date"
+                className="form-control"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                min={from || undefined}  // CHỈ CHỌN ĐƯỢC NGÀY ≥ 'Từ ngày'
+                /* KHÔNG set max để cho phép chọn cả tương lai */
+              />
             </div>
             <div className="col-md-6 d-flex align-items-end gap-2">
               <button className="btn btn-outline-secondary" type="button" onClick={setToday}>Hôm nay</button>

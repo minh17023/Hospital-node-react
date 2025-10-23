@@ -64,7 +64,7 @@ export default function RegisterBHYT() {
               className="form-control"
               value={f.soThe}
               onChange={set("soThe")}
-              placeholder="VD: HC1234567890"
+              placeholder="VD: BH1234567890"
             />
           </div>
           <div className="col-md-4">

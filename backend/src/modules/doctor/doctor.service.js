@@ -3,15 +3,13 @@ import { AppError } from "../../core/http/error.js";
 
 export const DoctorService = {
   async create(payload) {
-    for (const k of ["maNhanVien", "maChuyenKhoa"]) {
+    for (const k of ["tenBacSi", "maChuyenKhoa"]) {
       if (!payload?.[k]) throw new AppError(400, `Thiếu ${k}`);
     }
     try {
       return await DoctorModel.create(payload);
     } catch (e) {
       if (e.code === "VALIDATION") throw new AppError(400, e.message);
-      if (e.code === "NOT_FOUND") throw new AppError(404, e.message);
-      if (e.code === "DUPLICATE") throw new AppError(409, e.message);
       throw e;
     }
   },
@@ -43,6 +41,5 @@ export const DoctorService = {
     return true;
   },
 
-  getByMa:  (ma)      => DoctorModel.findByMa(ma),
-  getByUser:(maUser)  => DoctorModel.findByUser(maUser),
+  getByUser: (maUser) => DoctorModel.findByUser(maUser),
 };

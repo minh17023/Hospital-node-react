@@ -54,7 +54,7 @@ export const DoctorController = {
     } catch (e) { next(e); }
   },
 
-   async getByUser(req, res, next) {
+  async getByUser(req, res, next) {
     try {
       const maUser = String(req.params.maUser || "");
       const item = await DoctorService.getByUser(maUser);

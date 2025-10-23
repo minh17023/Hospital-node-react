@@ -84,7 +84,6 @@ export async function listWorkshifts({
   const baseSelect = `
     FROM ${T} llv
     JOIN bacsi b       ON b.maBacSi       = llv.maBacSi
-    JOIN nhanvien nv   ON nv.maNhanVien   = b.maNhanVien
     JOIN phongkham pk  ON pk.maPhongKham  = llv.maPhongKham
     JOIN calamviec clv ON clv.maCaLamViec = llv.maCaLamViec
     ${where}
@@ -98,7 +97,7 @@ export async function listWorkshifts({
   const [rows] = await pool.query(
     `SELECT
       llv.maLichLamViec,
-      llv.maBacSi, nv.hoTen AS tenBacSi,
+      llv.maBacSi, b.tenBacSi AS tenBacSi,
       llv.maPhongKham, pk.tenPhongKham,
       llv.maCaLamViec, clv.tenCaLamViec, clv.gioVao, clv.gioRa,
       llv.ngayLamViec,
